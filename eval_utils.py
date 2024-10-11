@@ -2,7 +2,11 @@
 # taken from https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/hendrycks_math/utils.py
 from typing import Dict, List
 
+import torch
 import datasets
+from datasets import load_dataset
+
+import sympy
 
 
 def process_docs(dataset: datasets.Dataset) -> datasets.Dataset:
@@ -250,12 +254,39 @@ def compare_answers(y_true, y_pred):
     # preprocess both answers
     y_true = extract_answer(y_true)
     y_pred = extract_answer(y_pred)
-    print("y_true", y_true)
-    input(y_pred)
+    print(y_true, y_pred)
     try:
-        true_expr = sympy.sympify(true_answer)
-        model_expr = sympy.sympify(model_answer)
+        true_expr = sympy.sympify(y_true)
+        model_expr = sympy.sympify(y_pred)
         return sympy.simplify(true_expr - model_expr) == 0
     except (sympy.SympifyError, TypeError):
         # Fallback to string comparison
-        return true_answer.strip() == model_answer.strip()
+        return y_true.strip() == y_pred.strip()
+
+
+
+def load_math(split="test", num_samples=None, seed=None):
+    """
+    Load the MATH eval set
+    https://huggingface.co/datasets/lighteval/MATH
+
+    Args:
+        num_samples (Optional[int]): Number of samples to load. If None, load all.
+        seed (Optional[int]): Seed for random sampling.
+
+    Yields:
+        Tuple[str, str]: (question, answer)
+    """
+    dataset = load_dataset("lighteval/MATH", "all", split=split, trust_remote_code=True)
+
+    if seed is not None:
+        torch.manual_seed(seed)
+
+    if num_samples is not None:
+        dataset = dataset.shuffle(seed=seed).select(range(num_samples))
+
+    for sample in dataset:
+        yield (
+            sample["problem"],
+            sample["solution"]
+        )

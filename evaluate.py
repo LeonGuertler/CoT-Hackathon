@@ -4,33 +4,9 @@ Final Evaluation Code
 
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from datasets import load_dataset
+from eval_utils import compare_answers, load_math
 
-def load_math(num_samples=None, seed=None):
-    """
-    Load the MATH eval set
-    https://huggingface.co/datasets/lighteval/MATH
 
-    Args:
-        num_samples (Optional[int]): Number of samples to load. If None, load all.
-        seed (Optional[int]): Seed for random sampling.
-
-    Yields:
-        Tuple[str, str]: (question, answer)
-    """
-    dataset = load_dataset("lighteval/MATH", "all", split="test", trust_remote_code=True)
-
-    if seed is not None:
-        torch.manual_seed(seed)
-
-    if num_samples is not None:
-        dataset = dataset.shuffle(seed=seed).select(range(num_samples))
-
-    for sample in dataset:
-        yield (
-            sample["problem"],
-            sample["solution"]
-        )
 
 # Load model and tokenizer
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B")
@@ -58,9 +34,9 @@ def generate_reply(problem, custom_prompt=None, max_new_tokens=4000, temperature
         str: The generated solution.
     """
     if custom_prompt:
-        prompt = f"{custom_prompt}\n\n{problem}\n\nSolution:"
+        prompt = f"{custom_prompt}\nQuestion{problem}\nSolution:"
     else:
-        prompt = f"Solve the following math problem:\n\n{problem}\n\nSolution:"
+        prompt = f"Question{problem}\nSolution:\n"
 
     # Tokenize input
     inputs = tokenizer(prompt, return_tensors='pt').to(device)
@@ -94,23 +70,6 @@ def generate_reply(problem, custom_prompt=None, max_new_tokens=4000, temperature
 
     return solution
 
-def compare_answers(y_true, y_pred):
-    """
-    Compare the true answer with the predicted answer.
-
-    This is a placeholder implementation. Depending on the evaluation criteria,
-    you might want to implement a more sophisticated comparison, possibly involving
-    symbolic computation or exact string matching.
-
-    Args:
-        y_true (str): The ground truth solution.
-        y_pred (str): The model-generated solution.
-
-    Returns:
-        int: 1 if correct, 0 otherwise.
-    """
-    # Simple exact match (can be improved)
-    return int(y_true.strip() == y_pred.strip())
 
 def main(num_samples=None, seed=None, custom_prompt=None):
     """
@@ -121,13 +80,12 @@ def main(num_samples=None, seed=None, custom_prompt=None):
         seed (Optional[int]): Seed for reproducibility.
         custom_prompt (str, optional): Custom prompt to use for generation.
     """
+
     total, correct = 0, 0
     for i, (problem, solution) in enumerate(load_math(num_samples=num_samples, seed=seed)):
         # Get model answer
         model_answer = generate_reply(problem, custom_prompt=custom_prompt)
 
-        print(solution)
-        input(model_answer)
         # Evaluate model answer
         is_correct = compare_answers(y_true=solution, y_pred=model_answer)
         correct += is_correct
@@ -140,5 +98,15 @@ def main(num_samples=None, seed=None, custom_prompt=None):
     print(f"Final Accuracy: {correct/total:.2%}")
 
 if __name__ == "__main__":
-    main(num_samples=100, seed=42, custom_prompt="You are a highly intelligent math assistant.")
+
+    # create the prompt 
+    train_iterator = load_math(split="train")
+    prompt = "Please solve the following math questions and make sure to wrap your answer into the $\boxed{answer}$"
+
+    for i, (question, answer) in enumerate(train_iterator):
+        prompt += f"Question: {question}\nSolution: {answer}\n"
+        if i >= 4:
+            break
+
+    main(num_samples=100, seed=42, custom_prompt=prompt)
 
