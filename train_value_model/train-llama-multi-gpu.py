@@ -108,7 +108,7 @@ class Trainer:
         self.checkpoint_dir = checkpoint_dir
         self.use_wandb = use_wandb
         self.gpu_id = gpu_id
-        self.batch_size = batch_size
+        self.batch_size = int(batch_size)
 
         self.total_steps = total_steps
 
@@ -335,8 +335,8 @@ def main():
     # ------------------------------------
     # Hyperparameters
     # ------------------------------------
-    batch_size = 6/2  # Adjust as per your GPU memory
-    gradient_accumulation_steps = 60*2
+    batch_size = int(6/2)  # Adjust as per your GPU memory
+    gradient_accumulation_steps = int(60*2)
     start_lr = 1e-8
     top_lr = 1e-6
     end_lr = 1e-10
