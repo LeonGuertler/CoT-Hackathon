@@ -8,9 +8,9 @@ class Dataset(torch.utils.data.Dataset):
         self.path = path
 
 
-        self.beginning_of_thought = "[b_o_t]"
-        self.end_of_thought = ["e_o_t"]
-        self.beginning_of_answer = "[b_o_a]"
+        self.beginning_of_thought = "<|reserved_special_token_10|>" #"<b_o_t>"
+        self.end_of_thought = "<|reserved_special_token_11|>" #"<e_o_t>"
+        self.beginning_of_answer = "<|reserved_special_token_12|>" #"<b_o_a>"
 
 
         self._load_data()
@@ -24,7 +24,7 @@ class Dataset(torch.utils.data.Dataset):
     def _load_data(self):
         with open(self.path, "r") as f:
             data = list(f) #json.load(f)
-
+        # c=0
         self.X, self.y = [], []
         for sub_dict_str in data:
             # conver to json 
@@ -36,6 +36,13 @@ class Dataset(torch.utils.data.Dataset):
             for step in sub_dict["label"]["steps"]:
                 # iterate over completions
                 for completion_dict in step["completions"]:
+                    if completion_dict["rating"] is None:
+                        continue
+                        # c += 1
+                        # print(c)
+                    # else:
+                    #     print("not none")
+                    #     input(step)
                     self.X.append(
                         current_x_stem + self._wrap_in_thought_token(completion_dict["text"])
                     )
@@ -44,7 +51,7 @@ class Dataset(torch.utils.data.Dataset):
                     )
 
                 if step["chosen_completion"] is None:
-                    pass 
+                    current_x_stem += self._wrap_in_thought_token(step["human_completion"])
                 else:
                     current_x_stem += self._wrap_in_thought_token(step["completions"][step["chosen_completion"]]["text"])
 
@@ -85,11 +92,12 @@ class BaseSFTDataset(Dataset):
             for step in sub_dict["label"]["steps"]:
                 if step["chosen_completion"] is None:
                     # append the answer
-                    current_x_stem += self._wrap_in_answer_token(sub_dict["question"]["ground_truth_answer"]) 
+                    current_x_stem += self._wrap_in_thought_token(step["human_completion"])
                 else:
                     current_x_stem += self._wrap_in_thought_token(step["completions"][step["chosen_completion"]]["text"])
 
                 # here would be a good place to insert the answer and conf-pred dataset
+            current_x_stem += self._wrap_in_answer_token(sub_dict["question"]["ground_truth_answer"]) 
             self.X.append(current_x_stem)
 
     def __getitem__(self, idx):

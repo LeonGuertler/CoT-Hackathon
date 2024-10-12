@@ -9,7 +9,7 @@ from torch.optim import AdamW
 # Hyperparameters
 batch_size = 2
 gradient_accumulation_steps = 2
-learning_rate = 5e-10
+learning_rate = 5e-100
 num_epochs = 10
 half_precision_training = True
 
@@ -96,7 +96,6 @@ tokenized_data_folder = prepare_data(tokenizer=tokenizer)
 def collate_fn(batch):
     # Extract token IDs and labels
     token_ids = [torch.tensor(sample["ids"], dtype=torch.long) for sample in batch]
-    print(batch)
     labels = torch.tensor([sample["label"] for sample in batch], dtype=torch.float32)
 
     # Pad sequences to the length of the longest sequence in the batch using the pad token ID
@@ -149,11 +148,12 @@ for epoch in range(num_epochs):
         logits = outputs.logits
         
         # Compute loss
-        print(logits[:, -1].view(-1), y)
         loss = criterion(
             logits[:, -1].view(-1),  # only use last token for value prediction
             y
         )
+
+        print(logits[:, -1].view(-1), y, loss)
 
 
         loss = loss / gradient_accumulation_steps  # Normalize loss for gradient accumulation

@@ -15,29 +15,31 @@ def push_to_hub(hf_dataset, repo_name, repo_description=""):
     # Initialize the API
     api = HfApi()
 
-    # Create a new dataset repository
-    api.create_repo(
-        repo_id=repo_name,
-        repo_type="dataset",
-        # description=repo_description,
-        private=False  # Set to True if you want the dataset to be private
-    )
+    try:
+        hf_dataset.push_to_hub(repo_name)
+    except:
+        # does not yet esits
+        api.create_repo(
+            repo_id=repo_name,
+            repo_type="dataset",
+            # description=repo_description,
+            private=False,  # Set to True if you want the dataset to be private
+        )
+        hf_dataset.push_to_hub(repo_name)
 
     # Push the dataset
-    hf_dataset.push_to_hub(repo_name)
-
     print(f"Dataset pushed to https://huggingface.co/datasets/{repo_name}")
 
 
-# custom_dataset = Dataset()
-# hf_dataset = custom_dataset.to_hf_dataset()
-# print(hf_dataset)
+custom_dataset = Dataset()
+hf_dataset = custom_dataset.to_hf_dataset()
+print(hf_dataset)
 
-# push_to_hub(
-#         hf_dataset, 
-#         repo_name="PRM800K_train2",  # Replace 'username' with your Hugging Face username
-#         repo_description="Phase 2 training dataset with questions and ratings."
-#     )
+push_to_hub(
+        hf_dataset, 
+        repo_name="PRM800K_train2",  # Replace 'username' with your Hugging Face username
+        repo_description="Phase 2 training dataset with questions and ratings."
+    )
 
 
 custom_dataset = BaseSFTDataset()
