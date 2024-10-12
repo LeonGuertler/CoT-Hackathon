@@ -320,7 +320,7 @@ def collate_fn(batch):
     token_ids = [torch.tensor(sample["ids"], dtype=torch.long) for sample in batch]
     labels = torch.tensor([sample["label"] + 1 for sample in batch], dtype=torch.long)  # Long for CrossEntropyLoss
 
-    pad_token_id = 151668
+    pad_token_id = 128021 #151668
     # Pad sequences to the length of the longest sequence in the batch using the pad token ID
     padded_input_ids = pad_sequence(token_ids, batch_first=True, padding_value=pad_token_id)
 
@@ -345,7 +345,7 @@ def main():
     total_steps = 2_500
 
     beta1 = 0.9
-    beta2 = 0.98
+    beta2 = 0.95
 
     max_grad_norm = 1.0
 
@@ -365,6 +365,8 @@ def main():
     # Retrieve Pad Token ID
     # ------------------------------------
     pad_token_id = tokenizer.convert_tokens_to_ids("<|reserved_special_token_13|>")
+
+    # input(pad_token_id)
     # ------------------------------------
     # Prepare Training Data
     # ------------------------------------
