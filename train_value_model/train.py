@@ -7,11 +7,12 @@ from datasets import load_from_disk
 from torch.optim import AdamW
 
 # Hyperparameters
-batch_size = 2
+batch_size = 24
 gradient_accumulation_steps = 2
-learning_rate = 5e-100
-num_epochs = 10
-half_precision_training = True
+learning_rate = 5e-4
+num_epochs = 5
+half_precision_training = False
+freeze_weights = True
 
 # Determine device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -42,7 +43,18 @@ class CustomLMHead(torch.nn.Module):
         x = self.linear(x)
         return self.activation(x)
 
+# Replace the model's lm_head with CustomLMHead
 model.lm_head = CustomLMHead()
+
+if freeze_weights:
+    # Freeze all model parameters
+    for param in model.parameters():
+        param.requires_grad = False
+
+    # Unfreeze only the parameters of the new lm_head
+    for param in model.lm_head.parameters():
+        param.requires_grad = True
+
 
 """
 LlamaForCausalLM(
@@ -153,7 +165,7 @@ for epoch in range(num_epochs):
             y
         )
 
-        print(logits[:, -1].view(-1), y, loss)
+        # print(logits[:, -1].view(-1), y, loss)
 
 
         loss = loss / gradient_accumulation_steps  # Normalize loss for gradient accumulation
@@ -165,7 +177,7 @@ for epoch in range(num_epochs):
         
         running_loss += loss.item()
         
-        if (i + 1) % (gradient_accumulation_steps * 10) == 0:
+        if i  % (gradient_accumulation_steps * 5) == 0:
             avg_loss = running_loss / (gradient_accumulation_steps * 10)
             print(f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}], Loss: {avg_loss:.4f}")
             running_loss = 0.0
