@@ -115,34 +115,34 @@ class Trainer:
 
         self.total_steps = total_steps
 
-        if gpu_id is None:
-            train_sampler = RandomSampler(
-                train_dataset,
-                replacement=True,
-                num_samples=self.total_steps * self.batch_size  # Ensure enough samples
-            )
-            val_sampler = RandomSampler(
-                val_dataset,
-                replacement=True,
-                num_samples=self.total_steps * self.batch_size  # Ensure enough samples
-            )
-        else:
-            train_sampler = DistributedSampler(
-                train_dataset,
-                num_replicas=world_size,
-                rank=gpu_id,
-                shuffle=True,
-                # replacement=True,
-                # num_samples=self.total_steps * self.batch_size // world_size
-            )
-            val_sampler = DistributedSampler(
-                val_dataset,
-                num_replicas=world_size,
-                rank=gpu_id,
-                shuffle=True,
-                # replacement=True,
-                # num_samples=self.total_steps * self.batch_size // world_size
-            )
+        # if gpu_id is None:
+        train_sampler = RandomSampler(
+            train_dataset,
+            replacement=True,
+            num_samples=self.total_steps * self.batch_size  # Ensure enough samples
+        )
+        val_sampler = RandomSampler(
+            val_dataset,
+            replacement=True,
+            num_samples=self.total_steps * self.batch_size  # Ensure enough samples
+        )
+        # else:
+        #     train_sampler = DistributedSampler(
+        #         train_dataset,
+        #         num_replicas=world_size,
+        #         rank=gpu_id,
+        #         shuffle=True,
+        #         # replacement=True,
+        #         # num_samples=self.total_steps * self.batch_size // world_size
+        #     )
+        #     val_sampler = DistributedSampler(
+        #         val_dataset,
+        #         num_replicas=world_size,
+        #         rank=gpu_id,
+        #         shuffle=True,
+        #         # replacement=True,
+        #         # num_samples=self.total_steps * self.batch_size // world_size
+        #     )
         
         train_loader = DataLoader(
             train_dataset,
