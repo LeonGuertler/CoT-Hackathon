@@ -551,10 +551,10 @@ def build_model(model_name):
     model.lm_head = CustomLMHead(hidden_size)
 
     # # Optionally freeze model weights except for the custom head
-    # if freeze_weights:
-    #     for name, param in model.named_parameters():
-    #         if not name.startswith('lm_head'):
-    #             param.requires_grad = False
+    if freeze_weights:
+        for name, param in model.named_parameters():
+            if not name.startswith('lm_head'):
+                param.requires_grad = False
 
     return model, tokenizer
 
