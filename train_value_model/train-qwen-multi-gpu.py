@@ -132,7 +132,7 @@ class Trainer:
                 num_replicas=world_size,
                 rank=gpu_id,
                 shuffle=True,
-                replacement=True,
+                # replacement=True,
                 num_samples=self.total_steps * self.batch_size // world_size
             )
             val_sampler = DistributedSampler(
@@ -140,7 +140,7 @@ class Trainer:
                 num_replicas=world_size,
                 rank=rank,
                 shuffle=True,
-                replacement=True,
+                # replacement=True,
                 num_samples=self.total_steps * self.batch_size // world_size
             )
         
