@@ -20,6 +20,7 @@ from omegaconf import OmegaConf
 import torch
 from torch.distributed import destroy_process_group
 import torch.multiprocessing as mp
+from torch.distributed import init_process_group
 
 # ------------------------------------
 # Custom RMSNorm and LM Head
