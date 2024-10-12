@@ -442,7 +442,7 @@ def main():
     # trainer.run_training_loop()
 
 
-def init_print_override():
+def init_print_overried():
     '''
     Overriding the print function is useful when running DDP. 
     This way, only rank 0 prints to the console.
