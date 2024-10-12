@@ -25,6 +25,8 @@ from torch.distributed import init_process_group
 from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 
+from peft import get_peft_model, LoraConfig, TaskType
+
 # ------------------------------------
 # Custom RMSNorm and LM Head
 # ------------------------------------
@@ -57,8 +59,8 @@ class CustomLMHead(torch.nn.Module):
         # x = self.relu(x)
         # x = self.l2(x)
         # x = self.relu(x)
-        x = self.l3(x)
-        x = self.reg(x)
+        # x = self.l3(x)
+        # x = self.reg(x)
 
         x = self.linear(x)
         return x
@@ -343,12 +345,13 @@ def main():
     # ------------------------------------
     # Hyperparameters
     # ------------------------------------
-    batch_size = 2 #24  # Adjust as per your GPU memory
+    batch_size = 8 #24  # Adjust as per your GPU memory
     gradient_accumulation_steps = 90 #int(60*2)
     learning_rate = 1e-5
-    freeze_weights = False
+    freeze_weights = True
 
-    total_steps = 1_000
+    total_steps = 2_500
+    warmup_steps = 200
 
     beta1 = 0.9
     beta2 = 0.95
@@ -407,7 +410,7 @@ def main():
 
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
-        num_warmup_steps=int(total_steps * 0.1),
+        num_warmup_steps=warmup_steps, #int(total_steps * 0.1),
         num_training_steps=total_steps
     )
 
@@ -550,13 +553,34 @@ def build_model(model_name, freeze_weights):
     hidden_size = model.config.hidden_size
     model.lm_head = CustomLMHead(hidden_size)
 
-    # # Optionally freeze model weights except for the custom head
+    # Prepare LoRA configuration
+    lora_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        inference_mode=False,
+        r=16,  # Rank of the LoRA matrices
+        lora_alpha=16,
+        lora_dropout=0.1,
+        target_modules=["q_proj", "v_proj"]  # Adjust based on model architecture
+    )
+
+    # Apply LoRA to the model
+    model = get_peft_model(model, lora_config)
+
+    # Optionally freeze model weights except for the LoRA layers and custom head
     if freeze_weights:
         for name, param in model.named_parameters():
-            if not name.startswith('lm_head'):
+            if 'lora' not in name and not name.startswith('lm_head'):
                 param.requires_grad = False
 
     return model, tokenizer
+
+    # # # Optionally freeze model weights except for the custom head
+    # if freeze_weights:
+    #     for name, param in model.named_parameters():
+    #         if not name.startswith('lm_head'):
+    #             param.requires_grad = False
+
+    # return model, tokenizer
 
 
 def build_single_gpu_training(
