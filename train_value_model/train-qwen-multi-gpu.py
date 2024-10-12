@@ -240,7 +240,8 @@ class Trainer:
                         wandb.log({
                             "Epoch": epoch,
                             "Step": i,
-                            "Loss": running_loss * self.gradient_accumulation_steps* (torch.cuda.device_count() if torch.cuda.is_available() else 1),
+                            "Loss": avg_loss, #running_loss * self.gradient_accumulation_steps* (torch.cuda.device_count() if torch.cuda.is_available() else 1),
+                            "Samples": i* self.gradient_accumulation_steps * (torch.cuda.device_count() if torch.cuda.is_available() else 1),
                             "Learning Rate": current_lr,
                         })
                     running_loss = 0.0
