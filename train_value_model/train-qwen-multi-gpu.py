@@ -342,7 +342,7 @@ def main():
     end_lr = 1e-10
     freeze_weights = False
 
-    total_steps = 20_000
+    total_steps = 2_500
 
     beta1 = 0.9
     beta2 = 0.98
@@ -416,6 +416,7 @@ def main():
           model_name=model_name,
           model=model,
           tokenizer=tokenizer,
+          total_steps=total_steps,
           batch_size=batch_size,
           train_dataset=train_dataset, 
           val_dataset=val_dataset, 
@@ -424,7 +425,7 @@ def main():
           criterion=criterion,
           gradient_accumulation_steps=gradient_accumulation_steps,
           max_grad_norm=max_grad_norm,
-          world_size=world_size
+          world_size=world_size,
       )
 
     else:
@@ -436,6 +437,7 @@ def main():
             model_name,
             model,
             tokenizer,
+            total_steps,
             batch_size,
             train_dataset, 
             val_dataset, 
@@ -444,6 +446,7 @@ def main():
             criterion,
             gradient_accumulation_steps,
             max_grad_norm,
+            
         ),
         nprocs=world_size,
         join=True
@@ -554,6 +557,7 @@ def build_single_gpu_training(
       model_name,
       model,
       tokenizer,
+      total_steps,
       batch_size,
       train_dataset, 
       val_dataset, 
@@ -572,6 +576,7 @@ def build_single_gpu_training(
   trainer = Trainer(
       model=model,
       tokenizer=tokenizer,
+      total_steps=total_steps,
       batch_size=batch_size,
       train_dataset=train_dataset,
       val_dataset=val_dataset,
@@ -597,6 +602,7 @@ def build_multi_gpu_training(
       model_name,
       model,
       tokenizer,
+      total_steps,
       batch_size,
       train_dataset, 
       val_dataset, 
@@ -622,6 +628,7 @@ def build_multi_gpu_training(
       trainer = Trainer(
         model=model,
         tokenizer=tokenizer,
+        total_steps=total_steps,
         batch_size=batch_size,
         train_dataset=train_dataset,
         val_dataset=val_dataset,
