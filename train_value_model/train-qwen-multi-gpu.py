@@ -285,11 +285,11 @@ def main():
     # Hyperparameters
     # ------------------------------------
     batch_size = 6  # Adjust as per your GPU memory
-    gradient_accumulation_steps = 32
+    gradient_accumulation_steps = 128
     start_lr = 1e-8
-    top_lr = 1e-4
+    top_lr = 1e-6
     end_lr = 1e-10
-    num_epochs = 5
+    num_epochs = 3
     freeze_weights = False
 
     beta1 = 0.9
@@ -364,7 +364,7 @@ def main():
     total_steps = (len(train_loader) // gradient_accumulation_steps) * num_epochs
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
-        num_warmup_steps=int(total_steps * 0.05),
+        num_warmup_steps=int(total_steps * 0.15),
         num_training_steps=total_steps
     )
 
