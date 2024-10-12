@@ -41,6 +41,7 @@ def generate_replies(problems, custom_prompt=None, max_new_tokens=4000, temperat
         prompts = [f"Question{problem}\nSolution:" for problem in problems]
 
     # Tokenize the inputs
+    tokenizer.pad_token = tokenizer.eos_token
     inputs = tokenizer(prompts, return_tensors='pt', padding=True, truncation=True).to(device)
 
     # Generate output in a batched manner
@@ -87,7 +88,7 @@ def main(num_samples=None, seed=None, custom_prompt=None):
         seed (Optional[int]): Seed for reproducibility.
         custom_prompt (str, optional): Custom prompt to use for generation.
     """
-    def batch(ds, batch_size=8):
+    def batch(ds, batch_size=256):
         batch = ([], [])
         for i,e  in enumerate(ds):
             batch[0].append(e[0])
@@ -132,5 +133,5 @@ if __name__ == "__main__":
         if i >= 4:
             break
 
-    main(num_samples=100, seed=42, custom_prompt=prompt)
+    main(num_samples=1000, seed=42, custom_prompt=prompt)
 

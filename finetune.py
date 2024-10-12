@@ -8,6 +8,11 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from eval_utils import compare_answers, load_math
 
+import torch.nn as nn
+
+
+
+
 
 def load_math(num_samples=None, seed=None, split="test"):
     """
@@ -49,6 +54,53 @@ model.to(device)
 
 
 ds = load_dataset("lighteval/MATH", "all", split="train", trust_remote_code=True)
+
+
+# class LoRALinear(nn.Module):
+#     def __init__(self, original_layer: nn.Linear, r=8, lora_alpha=32, lora_dropout=0.1):
+#         super(LoRALinear, self).__init__()
+#         self.original_layer = original_layer  # Store the original nn.Linear layer
+#         self.r = r  # Rank of the LoRA approximation
+#         self.lora_alpha = lora_alpha  # Scaling factor for LoRA
+#         self.scaling = lora_alpha / r  # Scale factor
+#         self.lora_dropout = nn.Dropout(p=lora_dropout)  # Dropout for LoRA
+        
+#         # Low-rank matrices
+#         in_features, out_features = original_layer.weight.T.shape
+#         self.lora_A = nn.Parameter(torch.randn(in_features, r) * 0.01)
+#         self.lora_B = nn.Parameter(torch.randn(r, out_features) * 0.01)
+
+#     def forward(self, x):
+#         # Perform the forward pass of the original linear layer
+#         original_output = self.original_layer(x)
+ 
+#         # Compute the LoRA output
+#         lora_out = self.lora_dropout(x @ self.lora_A) @ self.lora_B
+        
+#         # Add the LoRA output to the original output, scaled by self.scaling
+#         return original_output + lora_out * self.scaling
+
+# use_lora = model_cfg.get("use_lora", False)
+# if use_lora:
+#     targets = model_cfg.get("lora_targets", [])
+#     # Freeze original model parameters except LoRA layers
+#     for name, param in model.named_parameters():
+#         if "lora" not in name:
+#             param.requires_grad = False
+
+#     # Iterate over the model modules to find the target layers and replace them with LoRA layers
+#     for target in targets:
+#         for name, module in model.named_modules():
+#             if target in name and isinstance(module, nn.Linear):
+                
+#                 # Replace the module with a LoRALayer (wrap the original Linear layer)
+#                 lora_layer = LoRALinear(module)
+                
+#                 # We need to set the new LoRA layer into the model hierarchy
+#                 parent_name, attr_name = name.rsplit('.', 1)  # Split the module name to get parent and attribute
+#                 parent_module = dict(model.named_modules())[parent_name]  # Access the parent module
+                
+#                 setattr(parent_module, attr_name, lora_layer)
 
 
 ## TRAIN MODEL
