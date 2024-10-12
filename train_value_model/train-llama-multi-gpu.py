@@ -343,12 +343,12 @@ def main():
     # ------------------------------------
     # Hyperparameters
     # ------------------------------------
-    batch_size = 6  # Adjust as per your GPU memory
+    batch_size = 24  # Adjust as per your GPU memory
     gradient_accumulation_steps = 30 #int(60*2)
     learning_rate = 1e-4
     freeze_weights = True
 
-    total_steps = 1_000
+    total_steps = 5_000
 
     beta1 = 0.9
     beta2 = 0.95
