@@ -22,9 +22,6 @@ from torch.distributed import destroy_process_group
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group
 
-from torch.utils.data import DataLoader, RandomSampler
-from torch.utils.data.distributed import DistributedSampler
-
 # ------------------------------------
 # Custom RMSNorm and LM Head
 # ------------------------------------
@@ -80,89 +77,35 @@ class Trainer:
         self,
         model,
         tokenizer,
-        batch_size,
-        train_dataset,
-        val_dataset,
+        train_loader,
+        val_loader,
         optimizer,
         scheduler,
         criterion,
         device,
         gradient_accumulation_steps,
         max_grad_norm,
-        total_steps=20_000,
+        num_epochs=3,
         checkpoint_dir="checkpoints",
         use_wandb=True,
         wandb_project="COT",
         wandb_run_name="Value Model",
-        gpu_id=None,
-        world_size=0
+        gpu_id=None
     ):
         self.model = model
         self.tokenizer = tokenizer
+        self.train_loader = train_loader
+        self.val_loader = val_loader
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.criterion = criterion
         self.device = device
         self.gradient_accumulation_steps = gradient_accumulation_steps // torch.cuda.device_count() if torch.cuda.is_available() else gradient_accumulation_steps
         self.max_grad_norm = max_grad_norm
+        self.num_epochs = num_epochs
         self.checkpoint_dir = checkpoint_dir
         self.use_wandb = use_wandb
         self.gpu_id = gpu_id
-        self.batch_size = batch_size
-
-        self.total_steps = total_steps
-
-
-        self.total_steps = total_steps
-
-        if gpu_id is None:
-            train_sampler = RandomSampler(
-                train_dataset,
-                replacement=True,
-                num_samples=self.total_steps * self.batch_size  # Ensure enough samples
-            )
-            val_sampler = RandomSampler(
-                val_dataset,
-                replacement=True,
-                num_samples=self.total_steps * self.batch_size  # Ensure enough samples
-            )
-        else:
-            train_sampler = DistributedSampler(
-                train_dataset,
-                num_replicas=world_size,
-                rank=gpu_id,
-                shuffle=True,
-                replacement=True,
-                num_samples=self.total_steps * self.batch_size // world_size
-            )
-            val_sampler = DistributedSampler(
-                val_dataset,
-                num_replicas=world_size,
-                rank=rank,
-                shuffle=True,
-                replacement=True,
-                num_samples=self.total_steps * self.batch_size // world_size
-            )
-        
-        train_loader = DataLoader(
-            train_dataset,
-            batch_size=batch_size,
-            sampler=train_sampler,
-            # shuffle=True,
-            num_workers=4,
-            collate_fn=collate_fn,
-            pin_memory=True if device.type == "cuda" else False,
-        )
-        val_loader = DataLoader(
-            val_dataset,
-            batch_size=batch_size,
-            sampler=val_sampler,
-            # shuffle=False,
-            num_workers=4,
-            collate_fn=collate_fn,
-            pin_memory=True if device.type == "cuda" else False,
-        )
-        self.train_data_iter = iter(train_loader)
 
         print(f"GPU_id: {self.gpu_id}")
         self.scaler = None
@@ -242,17 +185,17 @@ class Trainer:
         return avg_val_loss
 
     def run_training_loop(self):
-        for iter_num in range(self.total_steps):
+        for epoch in range(1, self.num_epochs + 1):
+            print(f"Starting epoch {epoch}/{self.num_epochs}")
             epoch_start_time = time.time()
             running_loss = 0.0
+            input(len(self.train_loader))
 
-            start_time = time.time()
-            for i in range(self.gradient_accumulation_steps):
-                X, mask, y = next(self.train_data_iter)
-                X = X.to(self.gpu_id if self.gpu_id is not None else self.model.device)
-                mask = mask.to(self.gpu_id if self.gpu_id is not None else self.model.device)
-                y = y.to(self.gpu_id if self.gpu_id is not None else self.model.device)
-
+            for i, (X, mask, y) in enumerate(self.train_loader, 1):
+                start_time = time.time()
+                X = X.to(self.device)
+                mask = mask.to(self.device)
+                y = y.to(self.device)
 
                 if self.dist and hasattr(self.DDP_model, 'no_sync'):
                     context_manager = self.DDP_model.no_sync() if i != self.gradient_accumulation_steps else nullcontext()
@@ -276,36 +219,43 @@ class Trainer:
                 # loss.backward()
                 running_loss += loss.item()
 
-            # Unscale the gradients of the optimizer's assigned params in-place
-            self.scaler.unscale_(self.optimizer)
-            # Clip the gradients with normalization
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
+                if i % self.gradient_accumulation_steps == 0:
 
-            self.scaler.step(self.optimizer)
-            self.scheduler.step()
-            self.scaler.update()
-            self.optimizer.zero_grad()
+                    # Unscale the gradients of the optimizer's assigned params in-place
+                    self.scaler.unscale_(self.optimizer)
+                    # Clip the gradients with normalization
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
+
+                    self.scaler.step(self.optimizer)
+                    self.scheduler.step()
+                    self.scaler.update()
+                    self.optimizer.zero_grad()
 
 
-            avg_loss = running_loss * self.gradient_accumulation_steps / self.gradient_accumulation_steps
-            current_lr = self.scheduler.get_last_lr()[0]
-            end_time = time.time()
-            print(f"Step [{iter_num}/{self.total_steps}], Loss: {avg_loss:.4f}, LR: {current_lr:.1e}, dt: {end_time-start_time}")
-            start_time = time.time()
-            if self.use_wandb and (self.gpu_id==0 or not self.dist):
-                wandb.log({
-                    "Step": iter_num,
-                    "Loss": avg_loss, #running_loss * self.gradient_accumulation_steps* (torch.cuda.device_count() if torch.cuda.is_available() else 1),
-                    "Samples": iter_num * self.batch_size * self.gradient_accumulation_steps * (torch.cuda.device_count() if torch.cuda.is_available() else 1),
-                    "Learning Rate": current_lr,
-                })
-            running_loss = 0.0
+                    avg_loss = running_loss * self.gradient_accumulation_steps / self.gradient_accumulation_steps
+                    current_lr = self.scheduler.get_last_lr()[0]
+                    end_time = time.time()
+                    print(f"Epoch [{epoch}/{self.num_epochs}], Step [{i}/{len(self.train_loader)}], Loss: {avg_loss:.4f}, LR: {current_lr:.1e}, dt: {end_time-start_time}")
+                    start_time = time.time()
+                    if self.use_wandb and (self.gpu_id==0 or not self.dist):
+                        wandb.log({
+                            "Epoch": epoch,
+                            "Step": i,
+                            "Loss": avg_loss, #running_loss * self.gradient_accumulation_steps* (torch.cuda.device_count() if torch.cuda.is_available() else 1),
+                            "Samples": i* self.gradient_accumulation_steps * (torch.cuda.device_count() if torch.cuda.is_available() else 1),
+                            "Learning Rate": current_lr,
+                        })
+                    running_loss = 0.0
+
+            epoch_end_time = time.time()
+            epoch_duration = epoch_end_time - epoch_start_time
+            print(f"Epoch {epoch} completed in {epoch_duration:.2f}s")
 
             # Validation
             # self._validate()
 
-        # Checkpointing
-        self._save_model(epoch)
+            # Checkpointing
+            self._save_model(epoch)
 
         if self.use_wandb and (self.gpu_id==0 or not self.dist):
             wandb.finish()
@@ -340,9 +290,8 @@ def main():
     start_lr = 1e-8
     top_lr = 1e-6
     end_lr = 1e-10
+    num_epochs = 3
     freeze_weights = False
-
-    total_steps = 20_000
 
     beta1 = 0.9
     beta2 = 0.98
@@ -376,8 +325,6 @@ def main():
 
     
 
-    world_size = torch.cuda.device_count()
-
     # ------------------------------------
     # Load Datasets
     # ------------------------------------
@@ -388,7 +335,23 @@ def main():
     # ------------------------------------
     # Create DataLoaders
     # ------------------------------------
-    
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=4,
+        collate_fn=collate_fn,
+        pin_memory=True if device.type == "cuda" else False,
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=4,
+        collate_fn=collate_fn,
+        pin_memory=True if device.type == "cuda" else False,
+    )
 
     # ------------------------------------
     # Initialize Optimizer and Scheduler
@@ -399,9 +362,10 @@ def main():
         betas=(beta1, beta2)
     )
 
+    total_steps = (len(train_loader) // gradient_accumulation_steps) * num_epochs
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
-        num_warmup_steps=int(total_steps * 0.1),
+        num_warmup_steps=int(total_steps * 0.15),
         num_training_steps=total_steps
     )
 
@@ -410,21 +374,21 @@ def main():
     # ------------------------------------
     criterion = torch.nn.CrossEntropyLoss()
 
+    world_size = torch.cuda.device_count()
+
     if world_size <= 1:
       # single GPU/CPU training
       build_single_gpu_training(
           model_name=model_name,
           model=model,
           tokenizer=tokenizer,
-          batch_size=batch_size,
-          train_dataset=train_dataset, 
-          val_dataset=val_dataset, 
+          train_loader=train_loader, 
+          val_loader=val_loader, 
           optimizer=optimizer, 
           scheduler=scheduler,
           criterion=criterion,
           gradient_accumulation_steps=gradient_accumulation_steps,
           max_grad_norm=max_grad_norm,
-          world_size=world_size
       )
 
     else:
@@ -436,14 +400,13 @@ def main():
             model_name,
             model,
             tokenizer,
-            batch_size,
-            train_dataset, 
-            val_dataset, 
+            train_loader, 
+            val_loader, 
             optimizer, 
             scheduler,
             criterion,
             gradient_accumulation_steps,
-            max_grad_norm,
+            max_grad_norm
         ),
         nprocs=world_size,
         join=True
@@ -554,15 +517,13 @@ def build_single_gpu_training(
       model_name,
       model,
       tokenizer,
-      batch_size,
-      train_dataset, 
-      val_dataset, 
+      train_loader, 
+      val_loader, 
       optimizer, 
       scheduler,
       criterion,
       gradient_accumulation_steps,
       max_grad_norm,
-      world_size
   ):
   device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
   # model, tokenizer = build_model()
@@ -572,9 +533,8 @@ def build_single_gpu_training(
   trainer = Trainer(
       model=model,
       tokenizer=tokenizer,
-      batch_size=batch_size,
-      train_dataset=train_dataset,
-      val_dataset=val_dataset,
+      train_loader=train_loader,
+      val_loader=val_loader,
       optimizer=optimizer,
       scheduler=scheduler,
       criterion=criterion,
@@ -585,8 +545,7 @@ def build_single_gpu_training(
       use_wandb=True,
       wandb_project="COT",
       wandb_run_name=f"Value Model: {model_name}",
-      gpu_id=None, #0 if torch.cuda.is_available() else None
-      world_size=world_size
+      gpu_id=None #0 if torch.cuda.is_available() else None
   )
 
   trainer.run_training_loop()
@@ -597,9 +556,8 @@ def build_multi_gpu_training(
       model_name,
       model,
       tokenizer,
-      batch_size,
-      train_dataset, 
-      val_dataset, 
+      train_loader, 
+      val_loader, 
       optimizer, 
       scheduler,
       criterion,
@@ -622,9 +580,8 @@ def build_multi_gpu_training(
       trainer = Trainer(
         model=model,
         tokenizer=tokenizer,
-        batch_size=batch_size,
-        train_dataset=train_dataset,
-        val_dataset=val_dataset,
+        train_loader=train_loader,
+        val_loader=val_loader,
         optimizer=optimizer,
         scheduler=scheduler,
         criterion=criterion,
@@ -635,8 +592,7 @@ def build_multi_gpu_training(
         use_wandb=True,
         wandb_project="COT",
         wandb_run_name=f"Value Model: {model_name}",
-        gpu_id=rank, #0 if torch.cuda.is_available() else None
-        world_size=world_size
+        gpu_id=rank #0 if torch.cuda.is_available() else None
       )
       print(f"Rank {rank} Trainer built")
       trainer.run_training_loop()
