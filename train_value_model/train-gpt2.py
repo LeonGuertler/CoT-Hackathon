@@ -5,11 +5,17 @@ from prepare import prepare_data
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import load_from_disk
 from torch.optim import AdamW
+import numpy as np
+import wandb
+from torch.cuda.amp import autocast
+
+
+
 
 # Hyperparameters
-batch_size = 24
-gradient_accumulation_steps = 2
-learning_rate = 5e-5
+batch_size = 6 #24
+gradient_accumulation_steps = 32
+learning_rate = 3e-4
 num_epochs = 5
 half_precision_training = False
 freeze_weights = True
@@ -17,29 +23,78 @@ freeze_weights = True
 # Determine device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+model_name = "openai-community/gpt2"
 # Load model and tokenizer
-tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B")
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16) #attn_implementation = "flash_attention_2", dtype=torch.bfloat16)
+
+# Add the special tokens to the tokenizer
+special_tokens_dict = {
+    'additional_special_tokens': [
+      '<|reserved_special_token_10|>', 
+      '<|reserved_special_token_11|>', 
+      '<|reserved_special_token_12|>', 
+      '<|reserved_special_token_13|>'
+    ]
+}
+num_added_tokens = tokenizer.add_special_tokens(special_tokens_dict)
+
+# Resize model embeddings to match the new tokenizer size
+model.resize_token_embeddings(len(tokenizer))
+
+# init bruf
+wandb.init(
+  project="COT",
+  name=f"Value Model: {model_name}"
+)
+
 
 # Retrieve the pad token ID from the tokenizer
 pad_token_id = tokenizer.convert_tokens_to_ids("<|reserved_special_token_13|>")
 
-model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B")
+class RMSNorm(torch.nn.Module):
+    """
+    RMSNorm (https://arxiv.org/abs/1910.07467), implementation from
+    https://github.com/meta-llama/llama3/blob/main/llama/model.py
+    """
 
+    def __init__(self, dim: int, eps: float = 1e-6):
+        super().__init__()
+        self.eps = eps
+        self.weight = torch.nn.Parameter(torch.ones(dim))
+
+    def _norm(self, x):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+
+    def forward(self, x):
+        """Apply RMSNorm"""
+        output = self._norm(x.float()).type_as(x)
+        return output * self.weight
 
 # replace the model
 class CustomLMHead(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.linear = torch.nn.Linear(
-            in_features=2048,
-            out_features=1,
-            bias=False
+        self.l = torch.nn.Linear(
+          in_features=768,
+          out_features=768,
+          bias=True
         )
+        self.linear = torch.nn.Linear(
+            in_features=768,
+            out_features=1,
+            bias=True
+        )
+
+        self.reg = RMSNorm(dim=768)
 
         self.activation = torch.nn.Tanh()
 
 
     def forward(self, x):
+        # input(x)
+        x = self.l(x)
+        x = self.reg(x)
         x = self.linear(x)
         return self.activation(x)
 
@@ -57,6 +112,7 @@ if freeze_weights:
 
 
 """
+print(model)
 LlamaForCausalLM(
   (model): LlamaModel(
     (embed_tokens): Embedding(128256, 2048)
@@ -102,7 +158,10 @@ if half_precision_training and device.type == "cuda":
 model.train()
 
 # Prepare training data
-tokenized_data_folder = prepare_data(tokenizer=tokenizer)
+tokenized_data_folder = prepare_data(
+  tokenizer=tokenizer,
+  model_name=model_name
+)
 
 # Define a collate function for padding
 def collate_fn(batch):
@@ -150,37 +209,58 @@ for epoch in range(num_epochs):
     model.train()
     running_loss = 0.0
     optimizer.zero_grad()
+    mae_tracker = []
+    
     
     for i, (X, mask, y) in enumerate(train_loader):
+        # input(mask.size())
+        if X.size(1) >= 1024:
+          # left truncate
+          X = X[:, -1023:]
+          mask = mask[:, -1023:]
+       
         X = X.to(device)
         mask = mask.to(device)
         y = y.to(device)
-        
-        outputs = model(X, attention_mask=mask)
+        with autocast(dtype=torch.bfloat16):
+          outputs = model(X, attention_mask=mask)
         logits = outputs.logits
         
         # Compute loss
         loss = criterion(
-            logits[:, -1].view(-1),  # only use last token for value prediction
+            logits[:, -1].view(-1).float(),  # only use last token for value prediction
             y
+        )
+        mae_tracker.append(
+          torch.mean(
+            torch.abs(logits[:, -1].view(-1)-y)
+          ).item()
         )
 
         # print(logits[:, -1].view(-1), y, loss)
 
 
         loss = loss / gradient_accumulation_steps  # Normalize loss for gradient accumulation
+        running_loss += loss.item()
         loss.backward()
         
         if (i + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
             optimizer.zero_grad()
-        
-        running_loss += loss.item()
-        
-        if i  % (gradient_accumulation_steps * 5) == 0:
-            avg_loss = running_loss / (gradient_accumulation_steps * 10)
-            print(f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}], Loss: {avg_loss:.4f}")
+            print(f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}], Loss: {running_loss:.4f}, y_pred: {logits[:, -1].view(-1).tolist()}, y_true: {y.tolist()}")
+            wandb.log(
+              {
+                "epoch": epoch,
+                "step": i,
+                "samples": batch_size*i,
+                "mse": running_loss,
+                "mae": np.mean(mae_tracker)
+              }
+            )
             running_loss = 0.0
+            mae_tracker = []
+        
+        
     
     # Validation loop
     model.eval()

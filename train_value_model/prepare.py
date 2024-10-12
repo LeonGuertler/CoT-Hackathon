@@ -11,6 +11,8 @@ class ValueProcessor:
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer 
 
+
+
     def process(self, sample):
         """Tokenize the input text and extract the float label."""
         ids = self.tokenizer.encode(sample["text"], add_special_tokens=True)
@@ -59,9 +61,9 @@ def load_data(dataset_name, shuffle=True):
     # Return the training and validation datasets
     return split_dataset
 
-def prepare_data(tokenizer):
+def prepare_data(tokenizer, model_name):
     """Prepare and save the dataset using the datasets library."""
-    tokenized_data_folder = os.path.join("data", "value_model")
+    tokenized_data_folder = os.path.join("data", f"value_model_{model_name}")
     if os.path.exists(tokenized_data_folder):
         print("Tokenized data already exists")
         return tokenized_data_folder
