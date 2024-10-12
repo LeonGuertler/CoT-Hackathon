@@ -364,7 +364,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    model, tokenizer = build_model(model_name)
+    model, tokenizer = build_model(model_name, freeze_weights)
     # ------------------------------------
     # Retrieve Pad Token ID
     # ------------------------------------
@@ -517,7 +517,7 @@ def restore_print_override(original_print):
     import builtins as __builtin__
     __builtin__.print = original_print
 
-def build_model(model_name):
+def build_model(model_name, freeze_weights):
     # ------------------------------------
     # Model and Tokenizer Setup
     # ------------------------------------
