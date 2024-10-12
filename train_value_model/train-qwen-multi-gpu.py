@@ -204,14 +204,14 @@ class Trainer:
         self.scaler = torch.amp.GradScaler(self.model.device, enabled=dtype == torch.float16)
 
 
-    def _save_model(self, epoch):
+    def _save_model(self, iter_num):
         checkpoint = {
             "model_state_dict": self.model.module.state_dict() if isinstance(self.model, DDP) else self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
             "scheduler_state_dict": self.scheduler.state_dict(),
-            "epoch": epoch
+            "iter_num": iter_num
         }
-        checkpoint_path = os.path.join(self.checkpoint_dir, f"ckpt_epoch_{epoch}.pt")
+        checkpoint_path = os.path.join(self.checkpoint_dir, f"ckpt_{iter_num}.pt")
         print(f"Saving checkpoint to {checkpoint_path}")
         torch.save(checkpoint, checkpoint_path)
 
@@ -305,7 +305,7 @@ class Trainer:
             # self._validate()
 
         # Checkpointing
-        self._save_model(epoch)
+        self._save_model(iter_num)
 
         if self.use_wandb and (self.gpu_id==0 or not self.dist):
             wandb.finish()
