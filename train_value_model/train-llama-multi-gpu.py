@@ -119,12 +119,12 @@ class Trainer:
         train_sampler = RandomSampler(
             train_dataset,
             replacement=True,
-            num_samples=self.total_steps * self.batch_size * self.gradient_accumulation_steps  # Ensure enough samples
+            num_samples=int(self.total_steps * self.batch_size * self.gradient_accumulation_steps)  # Ensure enough samples
         )
         val_sampler = RandomSampler(
             val_dataset,
             replacement=True,
-            num_samples=self.total_steps * self.batch_size  * self.gradient_accumulation_steps # Ensure enough samples
+            num_samples=int(self.total_steps * self.batch_size  * self.gradient_accumulation_steps) # Ensure enough samples
         )
         # else:
         #     train_sampler = DistributedSampler(
@@ -336,7 +336,7 @@ def main():
     # Hyperparameters
     # ------------------------------------
     batch_size = 6/2  # Adjust as per your GPU memory
-    gradient_accumulation_steps = 64*2
+    gradient_accumulation_steps = 60*2
     start_lr = 1e-8
     top_lr = 1e-6
     end_lr = 1e-10
