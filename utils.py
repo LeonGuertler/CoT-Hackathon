@@ -1,5 +1,6 @@
 import torch 
 import json 
+from datasets import Dataset as HFDataset
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, path="../data/phase2_train.jsonl"):
@@ -56,6 +57,12 @@ class Dataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
 
+    def to_hf_dataset(self):
+        """Converts the custom dataset to a Hugging Face Dataset."""
+        data = {"text": self.X, "value_label": self.y}
+        hf_dataset = HFDataset.from_dict(data)
+        return hf_dataset
+
 
 
 class BaseSFTDataset(Dataset):
@@ -87,6 +94,12 @@ class BaseSFTDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.X[idx]
+
+    def to_hf_dataset(self):
+        """Converts the custom dataset to a Hugging Face Dataset."""
+        data = {"text": self.X}
+        hf_dataset = HFDataset.from_dict(data)
+        return hf_dataset
 
 
 
