@@ -138,7 +138,7 @@ class Trainer:
             val_sampler = DistributedSampler(
                 val_dataset,
                 num_replicas=world_size,
-                rank=rank,
+                rank=gpu_id,
                 shuffle=True,
                 # replacement=True,
                 # num_samples=self.total_steps * self.batch_size // world_size
