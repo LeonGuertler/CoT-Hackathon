@@ -588,7 +588,7 @@ def build_multi_gpu_training(
         use_wandb=True,
         wandb_project="COT",
         wandb_run_name=f"Value Model: {model_name}",
-        gpu_id=0 if torch.cuda.is_available() else None
+        gpu_id=rank #0 if torch.cuda.is_available() else None
       )
       print(f"Rank {rank} Trainer built")
       trainer.run_training_loop()
