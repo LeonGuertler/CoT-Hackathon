@@ -443,10 +443,28 @@ def main():
 
 
 def init_print_override():
-  pass 
+    '''
+    Overriding the print function is useful when running DDP. 
+    This way, only rank 0 prints to the console.
+    '''
+    import builtins as __builtin__
+    
+    original_print = __builtin__.print
 
-def restore_print_overried():
-  pass
+    def print(*args, **kwargs):
+        if os.getenv('GLOBAL_RANK') == '0':
+            original_print(*args, **kwargs)
+
+    __builtin__.print = print
+
+    return original_print
+
+def restore_print_override(original_print):
+    '''
+    Restore the original print function.
+    '''
+    import builtins as __builtin__
+    __builtin__.print = original_print
 
 def build_model(model_name):
     # ------------------------------------
@@ -579,7 +597,7 @@ def build_multi_gpu_training(
       destroy_process_group()
 
       # restore the print function
-      restore_print_overried(original_print)
+      restore_print_override(original_print)
 
 
 
