@@ -119,12 +119,12 @@ class Trainer:
         train_sampler = RandomSampler(
             train_dataset,
             replacement=True,
-            num_samples=self.total_steps * self.batch_size  # Ensure enough samples
+            num_samples=self.total_steps * self.batch_size * self.gradient_accumulation_steps  # Ensure enough samples
         )
         val_sampler = RandomSampler(
             val_dataset,
             replacement=True,
-            num_samples=self.total_steps * self.batch_size  # Ensure enough samples
+            num_samples=self.total_steps * self.batch_size  * self.gradient_accumulation_steps # Ensure enough samples
         )
         # else:
         #     train_sampler = DistributedSampler(
