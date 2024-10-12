@@ -284,7 +284,7 @@ def main():
     # ------------------------------------
     # Hyperparameters
     # ------------------------------------
-    batch_size = 8  # Adjust as per your GPU memory
+    batch_size = 6  # Adjust as per your GPU memory
     gradient_accumulation_steps = 32
     start_lr = 1e-8
     top_lr = 1e-4
