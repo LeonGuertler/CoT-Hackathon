@@ -5,6 +5,7 @@ Final Evaluation Code
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from eval_utils import compare_answers, load_math
+import tqdm
 
 
 
@@ -18,30 +19,31 @@ model.to(device)
 if device.type == "cuda":
     model.half()
 
-def generate_reply(problem, custom_prompt=None, max_new_tokens=4000, temperature=1.0, top_p=0.95, stop_sequences=None):
+def generate_replies(problems, custom_prompt=None, max_new_tokens=4000, temperature=1.0, top_p=0.95, stop_sequences=None):
     """
-    Generate a reply/solution to a given math problem.
+    Generate replies/solutions to a batch of math problems.
 
     Args:
-        problem (str): The math problem to solve.
+        problems (List[str]): The list of math problems to solve.
         custom_prompt (str, optional): A custom prompt to prepend. Defaults to a standard instruction.
-        max_new_tokens (int, optional): Maximum number of tokens to generate. Defaults to 200.
-        temperature (float, optional): Sampling temperature. Lower values make output more deterministic. Defaults to 0.0.
+        max_new_tokens (int, optional): Maximum number of tokens to generate. Defaults to 4000.
+        temperature (float, optional): Sampling temperature. Lower values make output more deterministic. Defaults to 1.0.
         top_p (float, optional): Nucleus sampling probability. Defaults to 0.95.
         stop_sequences (List[str], optional): Sequences at which to stop generation. Defaults to None.
 
     Returns:
-        str: The generated solution.
+        List[str]: A list of generated solutions for each problem.
     """
+    # Construct the prompts
     if custom_prompt:
-        prompt = f"{custom_prompt}\nQuestion{problem}\nSolution:"
+        prompts = [f"{custom_prompt}\nQuestion{problem}\nSolution:" for problem in problems]
     else:
-        prompt = f"Question{problem}\nSolution:\n"
+        prompts = [f"Question{problem}\nSolution:" for problem in problems]
 
-    # Tokenize input
-    inputs = tokenizer(prompt, return_tensors='pt').to(device)
+    # Tokenize the inputs
+    inputs = tokenizer(prompts, return_tensors='pt', padding=True, truncation=True).to(device)
 
-    # Generate output
+    # Generate output in a batched manner
     with torch.no_grad():
         outputs = model.generate(
             input_ids=inputs.input_ids,
@@ -55,21 +57,26 @@ def generate_reply(problem, custom_prompt=None, max_new_tokens=4000, temperature
             stopping_criteria=None  # You can implement custom stopping criteria if needed
         )
 
-    # Decode the generated tokens
-    generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    # Decode the generated tokens for each batch
+    generated_texts = tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
-    # Extract the solution part
-    solution = generated_text[len(prompt):].strip()
+    solutions = []
+    for prompt, generated_text in zip(prompts, generated_texts):
+        # Extract the solution part by removing the prompt
+        solution = generated_text[len(prompt):].strip()
 
-    # Optional: Truncate at stop sequences if provided
-    if stop_sequences:
-        for stop_seq in stop_sequences:
-            idx = solution.find(stop_seq)
-            if idx != -1:
-                solution = solution[:idx].strip()
+        # Optional: Truncate at stop sequences if provided
+        if stop_sequences:
+            for stop_seq in stop_sequences:
+                idx = solution.find(stop_seq)
+                if idx != -1:
+                    solution = solution[:idx].strip()
 
-    return solution
+        solutions.append(solution)
 
+    return solutions
+
+DEBUG=False
 
 def main(num_samples=None, seed=None, custom_prompt=None):
     """
@@ -80,20 +87,37 @@ def main(num_samples=None, seed=None, custom_prompt=None):
         seed (Optional[int]): Seed for reproducibility.
         custom_prompt (str, optional): Custom prompt to use for generation.
     """
+    def batch(ds, batch_size=8):
+        batch = ([], [])
+        for i,e  in enumerate(ds):
+            batch[0].append(e[0])
+            batch[1].append(e[1])
+            if i % batch_size == 0 and i > 0:
+                yield batch
+                batch = ([], [])
+
 
     total, correct = 0, 0
-    for i, (problem, solution) in enumerate(load_math(num_samples=num_samples, seed=seed)):
+    for i, (problems, solutions) in tqdm.tqdm(enumerate(batch(load_math(num_samples=num_samples, seed=seed)))):
         # Get model answer
-        model_answer = generate_reply(problem, custom_prompt=custom_prompt)
+        model_answer = generate_replies(problems, custom_prompt=custom_prompt)
 
-        # Evaluate model answer
-        is_correct = compare_answers(y_true=solution, y_pred=model_answer)
-        correct += is_correct
-        total += 1
+        # # Evaluate model answer
+        # is_correct = compare_answers(y_true=solution, y_pred=model_answer)
+        # correct += is_correct
+        # total += 1
+        for problem, solution, model_answer in zip(problems, solutions, model_answer):
+            is_correct = compare_answers(y_true=solution, y_pred=model_answer)
+            correct += is_correct
+            total += 1
 
         # Optional: Print progress
         if (i + 1) % 10 == 0 or (i + 1) == num_samples:
             print(f"Evaluated {i + 1}/{num_samples if num_samples else 'all'} samples. Current Accuracy: {correct/total:.2%}")
+        if DEBUG:
+            print(f"Problem: {problem}\nModel Answer: {model_answer}\nTrue Answer: {solution}\nCorrect: {is_correct}\n")
+            if i>10:
+                break
 
     print(f"Final Accuracy: {correct/total:.2%}")
 
