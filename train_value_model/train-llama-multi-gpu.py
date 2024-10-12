@@ -46,12 +46,20 @@ class CustomLMHead(torch.nn.Module):
     def __init__(self, hidden_size, num_classes=3):
         super().__init__()
         self.l = torch.nn.Linear(hidden_size, hidden_size)
+        self.l2 = torch.nn.Linear(hidden_size, hidden_size)
+        self.relu = torch.nn.ReLU()
+        self.l3 = torch.nn.Linear(hidden_size, hidden_size)
         self.reg = RMSNorm(dim=hidden_size)
         self.linear = torch.nn.Linear(hidden_size, num_classes)  # Adjust num_classes as needed
 
     def forward(self, x):
-        # x = self.l(x)
-        # x = self.reg(x)
+        x = self.l(x)
+        x = self.relu(x)
+        x = self.l2(x)
+        x = self.relu(x)
+        x = self.l3(x)
+        x = self.reg(x)
+
         x = self.linear(x)
         return x
 
@@ -335,10 +343,10 @@ def main():
     # ------------------------------------
     # Hyperparameters
     # ------------------------------------
-    batch_size = 2  # Adjust as per your GPU memory
-    gradient_accumulation_steps = 90 #int(60*2)
+    batch_size = 6  # Adjust as per your GPU memory
+    gradient_accumulation_steps = 30 #int(60*2)
     learning_rate = 1e-4
-    freeze_weights = False
+    freeze_weights = True
 
     total_steps = 1_000
 
