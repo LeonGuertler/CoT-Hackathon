@@ -389,7 +389,7 @@ def main():
     else:
       # multi-GPU training
       mp.spawn(
-        ddp_min,
+        build_multi_gpu_training,
         args=(
             world_size,
             model_name,
