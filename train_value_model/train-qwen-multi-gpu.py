@@ -254,7 +254,24 @@ class Trainer:
 
         if self.use_wandb:
             wandb.finish()
+# ------------------------------------
+# Define Collate Function
+# ------------------------------------
+def collate_fn(batch):
+    """
+    Collate function to pad sequences and create attention masks.
+    """
+    # Extract token IDs and labels
+    token_ids = [torch.tensor(sample["ids"], dtype=torch.long) for sample in batch]
+    labels = torch.tensor([sample["label"] + 1 for sample in batch], dtype=torch.long)  # Long for CrossEntropyLoss
 
+    # Pad sequences to the length of the longest sequence in the batch using the pad token ID
+    padded_input_ids = pad_sequence(token_ids, batch_first=True, padding_value=pad_token_id)
+
+    # Create attention masks: 1 for real tokens, 0 for padding tokens
+    attention_masks = (padded_input_ids != pad_token_id).long()
+
+    return padded_input_ids, attention_masks, labels
 # ------------------------------------
 # Main Training Script
 # ------------------------------------
@@ -301,24 +318,7 @@ def main():
         model_name=model_name
     )
 
-    # ------------------------------------
-    # Define Collate Function
-    # ------------------------------------
-    def collate_fn(batch):
-        """
-        Collate function to pad sequences and create attention masks.
-        """
-        # Extract token IDs and labels
-        token_ids = [torch.tensor(sample["ids"], dtype=torch.long) for sample in batch]
-        labels = torch.tensor([sample["label"] + 1 for sample in batch], dtype=torch.long)  # Long for CrossEntropyLoss
-
-        # Pad sequences to the length of the longest sequence in the batch using the pad token ID
-        padded_input_ids = pad_sequence(token_ids, batch_first=True, padding_value=pad_token_id)
-
-        # Create attention masks: 1 for real tokens, 0 for padding tokens
-        attention_masks = (padded_input_ids != pad_token_id).long()
-
-        return padded_input_ids, attention_masks, labels
+    
 
     # ------------------------------------
     # Load Datasets
