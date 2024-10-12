@@ -50,8 +50,8 @@ class CustomLMHead(torch.nn.Module):
         self.linear = torch.nn.Linear(hidden_size, num_classes)  # Adjust num_classes as needed
 
     def forward(self, x):
-        x = self.l(x)
-        x = self.reg(x)
+        # x = self.l(x)
+        # x = self.reg(x)
         x = self.linear(x)
         return x
 
@@ -335,22 +335,18 @@ def main():
     # ------------------------------------
     # Hyperparameters
     # ------------------------------------
-    batch_size = 3  # Adjust as per your GPU memory
+    batch_size = 2  # Adjust as per your GPU memory
     gradient_accumulation_steps = 90 #int(60*2)
-    start_lr = 1e-8
-    top_lr = 1e-6
-    end_lr = 1e-10
+    learning_rate = 1e-4
     freeze_weights = False
 
-    total_steps = 2_500
+    total_steps = 1_000
 
     beta1 = 0.9
     beta2 = 0.95
 
     max_grad_norm = 1.0
 
-    # Learning rate (using top_lr as the main learning rate)
-    learning_rate = top_lr
 
     model_name = "meta-llama/Llama-3.2-1B"
 
