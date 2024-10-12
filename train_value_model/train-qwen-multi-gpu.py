@@ -191,6 +191,7 @@ class Trainer:
             running_loss = 0.0
 
             for i, (X, mask, y) in enumerate(self.train_loader, 1):
+                start_time = time.time()
                 X = X.to(self.device)
                 mask = mask.to(self.device)
                 y = y.to(self.device)
@@ -232,8 +233,9 @@ class Trainer:
 
                     avg_loss = running_loss * self.gradient_accumulation_steps / self.gradient_accumulation_steps
                     current_lr = self.scheduler.get_last_lr()[0]
-                    print(f"Epoch [{epoch}/{self.num_epochs}], Step [{i}/{len(self.train_loader)}], Loss: {avg_loss:.4f}, LR: {current_lr:.1e}")
-
+                    end_time = time.time()
+                    print(f"Epoch [{epoch}/{self.num_epochs}], Step [{i}/{len(self.train_loader)}], Loss: {avg_loss:.4f}, LR: {current_lr:.1e}, dt: {end_time-start_time}")
+                    start_time = time.time()
                     if self.use_wandb and (self.gpu_id==0 or not self.dist):
                         wandb.log({
                             "Epoch": epoch,
@@ -281,7 +283,7 @@ def main():
     # ------------------------------------
     # Hyperparameters
     # ------------------------------------
-    batch_size = 12  # Adjust as per your GPU memory
+    batch_size = 8  # Adjust as per your GPU memory
     gradient_accumulation_steps = 32
     start_lr = 1e-8
     top_lr = 1e-4
