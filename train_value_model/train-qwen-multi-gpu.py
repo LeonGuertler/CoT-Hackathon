@@ -262,6 +262,7 @@ def collate_fn(batch):
     """
     Collate function to pad sequences and create attention masks.
     """
+    global pad_token_id
     # Extract token IDs and labels
     token_ids = [torch.tensor(sample["ids"], dtype=torch.long) for sample in batch]
     labels = torch.tensor([sample["label"] + 1 for sample in batch], dtype=torch.long)  # Long for CrossEntropyLoss
