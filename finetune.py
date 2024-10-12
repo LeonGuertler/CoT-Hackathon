@@ -5,55 +5,51 @@ import torch
 import tqdm
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
-
+import time
 from eval_utils import compare_answers, load_math
 
 from vllm import LLM, SamplingParams
-from eval_utils import compare_answers, load_math
 import tqdm
 import time
 import prompts as math_prompts
+import wandb
 
-def load_math(num_samples=None, seed=None, split="test"):
-    """
-    Load the MATH eval set
-    https://huggingface.co/datasets/lighteval/MATH
 
-    Args:
-        num_samples (Optional[int]): Number of samples to load. If None, load all.
-        seed (Optional[int]): Seed for random sampling.
+CONFIG = {
+    "micro_batch_size": 4,
+    "gradient_accumulation_steps": 1,
+    "lr": 5e-6,
+    "num_train_epochs": 1,
+    "run_name": "sft_llama3.1-1b-instruct",
+}
 
-    Yields:
-        Tuple[str, str]: (question, answer)
-    """
-    dataset = load_dataset("LeonGuertler/PRM800K_train2_base_sft", split=split)
-
-    if seed is not None:
-        torch.manual_seed(seed)
-
-    if num_samples is not None:
-        dataset = dataset.shuffle(seed=seed).select(range(num_samples))
-
-    for sample in dataset:
-        yield (
-            sample["test"]
-        )
+wandb.init(
+    # set the wandb project where this run will be logged
+    project="cot",
+    # set the name of the run
+    name=CONFIG["run_name"],
+    # set the config for this run
+    config=CONFIG,
+    # track hyperparameters and run metadata
+)
 
 # Load model and tokenizer
-tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
+tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B")
 tokenizer.pad_token = tokenizer.eos_token
-model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
+model = AutoModelForCausalLM.from_pretrained(
+    "meta-llama/Llama-3.2-1B",
+    torch_dtype=torch.bfloat16,
+    attn_implementation="flash_attention_2"
+)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Move model to device and enable FP16 precision if CUDA is available
 model.to(device)
-# if device.type == "cuda":
-#     model.half()
 
-
-
-# ds = load_dataset("lighteval/MATH", "all", split="train", trust_remote_code=True)
-ds = load_dataset("LeonGuertler/PRM800K_train2_base_sft", split="train")
+ds = load_dataset("lighteval/MATH", "all", split="train", trust_remote_code=True)
+# map problem, solution to text
+ds = ds.map(lambda x: {"text": f"{x['problem']}{x['solution']}"})
+# ds = load_dataset("LeonGuertler/PRM800K_train2_base_sft", split="train")
 
 
 # class LoRALinear(nn.Module):
@@ -105,30 +101,41 @@ ds = load_dataset("LeonGuertler/PRM800K_train2_base_sft", split="train")
 
 ## TRAIN MODEL
 model.train()
-optimizer = torch.optim.AdamW(model.parameters(), lr=5e-6)
-loss_fn = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.AdamW(model.parameters(), lr=CONFIG["lr"])
 
 ## LR Scheduler
 # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
+cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, eta_min=2e-6, T_max=25000)
+warmup_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: min((epoch + 1) / 1000, 1.0))
+scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, [
+    warmup_scheduler,
+    cosine_scheduler
+], milestones=[1000])
 
 for epoch in range(1):
     model.train()
-    for i, batch in enumerate(tqdm.tqdm(torch.utils.data.DataLoader(ds, batch_size=4, shuffle=True))):
-        for j in range(2): # Accumulate gradients
+    for i, batch in enumerate(tqdm.tqdm(torch.utils.data.DataLoader(ds, batch_size=CONFIG["micro_batch_size"], shuffle=True))):
+        inputs = tokenizer(batch["text"], return_tensors="pt", padding=True, truncation=True, max_length=2048).to(device)
+        loss = model(**inputs, labels=inputs.input_ids).loss
+        loss.backward() 
+        
+        if i % CONFIG["gradient_accumulation_steps"] == CONFIG["gradient_accumulation_steps"] - 1: 
+            optimizer.step() 
+            scheduler.step()
             optimizer.zero_grad()
-            inputs = tokenizer([batch["text"][j*2 + k] for k in range(2)], return_tensors="pt", padding=True, truncation=True, max_length=1024).to(device)
-            loss = model(**inputs, labels=inputs.input_ids).loss
-            loss.backward()
-            optimizer.step()
-            # scheduler.step()
+            
+            wandb.log({"loss": loss.item()})
 
-            if i % 100 == 0:
-                print(f"Epoch {epoch}, Iteration {i}, Loss: {loss.item()}")
 
 model.save_pretrained("sft_llama3.1-1b-instruct")
+del model
+del optimizer
+torch.cuda.empty_cache()
+# need to add tokenizer
+tokenizer.save_pretrained("sft_llama3.1-1b-instruct")
 BATCH_SIZE = 56
 DEBUG = False
-llm = LLM(model="sft_llama3.1-1b-instruct", dtype="float32")
+llm = LLM(model="sft_llama3.1-1b-instruct", dtype="bfloat16")
 STOP_SEQUENCES = ["<|eot_id|>"]
 sampling_params = SamplingParams(temperature=1.0, top_p=0.95, max_tokens=4000)
 
@@ -141,6 +148,7 @@ def generate_replies(problems, stop_sequences=None):
         if generated_text == None:
             print(f"{output.outputs[0]=}")
             print(f"{generated_text=}")
+            generated_text = ""
     print(f"{outputs[0].outputs[0]=}")
     print(f"{generated_texts[0]=}")
     solutions=[]
@@ -203,7 +211,6 @@ def main(num_samples=None, seed=None):
 if __name__ == "__main__":
 
     # create the prompt 
-    train_iterator = load_math(split="train")
     start = time.time()
 
     main(num_samples=1000, seed=42)
