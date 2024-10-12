@@ -15,10 +15,10 @@ from torch.cuda.amp import autocast
 # Hyperparameters
 batch_size = 6 #24
 gradient_accumulation_steps = 32
-learning_rate = 3e-4
+learning_rate = 3e-5
 num_epochs = 5
 half_precision_training = False
-freeze_weights = True
+freeze_weights = False
 
 # Determine device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
