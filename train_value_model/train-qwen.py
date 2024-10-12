@@ -214,10 +214,10 @@ for epoch in range(num_epochs):
     
     for i, (X, mask, y) in enumerate(train_loader):
         # input(mask.size())
-        if X.size(1) >= 1024:
-          # left truncate
-          X = X[:, -1023:]
-          mask = mask[:, -1023:]
+        # if X.size(1) >= 1024:
+        #   # left truncate
+        #   X = X[:, -1023:]
+        #   mask = mask[:, -1023:]
        
         X = X.to(device)
         mask = mask.to(device)

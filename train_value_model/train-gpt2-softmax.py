@@ -14,7 +14,7 @@ from torch.cuda.amp import autocast
 
 # Hyperparameters
 batch_size = 6 #24
-gradient_accumulation_steps = 32
+gradient_accumulation_steps = 64
 learning_rate = 3e-5
 num_epochs = 5
 half_precision_training = False
@@ -82,22 +82,24 @@ class CustomLMHead(torch.nn.Module):
         )
         self.linear = torch.nn.Linear(
             in_features=768,
-            out_features=1,
+            out_features=3,
             bias=True
         )
 
         self.reg = RMSNorm(dim=768)
 
-        self.activation = torch.nn.Tanh()
+        self.activation = torch.nn.Softmax()
+
+        # self.activation = torch.nn.Tanh()
 
 
     def forward(self, x):
         # input(x)
-        # x = self.l(x)
-        # x = self.reg(x)
+        x = self.l(x)
+        x = self.reg(x)
         x = self.linear(x)
-        return self.activation(x)
         return x
+        # return self.activation(x)
 
 # Replace the model's lm_head with CustomLMHead
 model.lm_head = CustomLMHead()
@@ -203,7 +205,7 @@ val_loader = torch.utils.data.DataLoader(
 
 # Set up optimizer and loss function
 optimizer = AdamW(model.parameters(), lr=learning_rate)
-criterion = torch.nn.MSELoss()
+criterion = torch.nn.CrossEntropyLoss()
 
 # Training loop
 for epoch in range(num_epochs):
@@ -246,26 +248,12 @@ for epoch in range(num_epochs):
 
         # input(last_logits)
         # input(last_logits.size())
-
+        # print(last_logits.size())
+        # print(y.size())
+        # print((y+1).long())
         # Compute the loss using the extracted logits
-        loss = criterion(last_logits.float(), y)
-
-        # # get the final non-masked token
-        # output_tokens = 
+        loss = criterion(last_logits.float(), (y+1).long())
         
-        # # Compute loss
-        # loss = criterion(
-        #     logits[:, -1].view(-1).float(),  # only use last token for value prediction
-        #     y
-        # )
-        # mae_tracker.append(
-        #   torch.mean(
-        #     torch.abs(logits[:, -1].view(-1)-y)
-        #   ).item()
-        # )
-
-        # print(logits[:, -1].view(-1), y, loss)
-
 
         loss = loss / gradient_accumulation_steps  # Normalize loss for gradient accumulation
         running_loss += loss.item()
@@ -274,7 +262,7 @@ for epoch in range(num_epochs):
         if (i + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
             optimizer.zero_grad()
-            print(f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}], Loss: {running_loss:.4f}, y_pred: {logits[:, -1].view(-1).tolist()}, y_true: {y.tolist()}")
+            print(f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}], Loss: {running_loss:.4f}, y_pred: {logits[:, -1].tolist()}, y_true: {y.tolist()}")
             wandb.log(
               {
                 "epoch": epoch,
