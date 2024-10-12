@@ -254,7 +254,7 @@ def compare_answers(y_true, y_pred):
     # preprocess both answers
     y_true = extract_answer(y_true)
     y_pred = extract_answer(y_pred)
-    print(y_true, y_pred)
+    print(f"{y_true=}, {y_pred=}")
     try:
         true_expr = sympy.sympify(y_true)
         model_expr = sympy.sympify(y_pred)
