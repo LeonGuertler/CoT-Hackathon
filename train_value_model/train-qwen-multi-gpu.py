@@ -120,7 +120,7 @@ class Trainer:
 
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 
-        if self.use_wandb:
+        if self.use_wandb and (self.gpu_id==0 or not self.dist):
             wandb.init(
                 project=wandb_project,
                 name=wandb_run_name
@@ -234,7 +234,7 @@ class Trainer:
                     current_lr = self.scheduler.get_last_lr()[0]
                     print(f"Epoch [{epoch}/{self.num_epochs}], Step [{i}/{len(self.train_loader)}], Loss: {avg_loss:.4f}, LR: {current_lr:.1e}")
 
-                    if self.use_wandb:
+                    if self.use_wandb and (self.gpu_id==0 or not self.dist):
                         wandb.log({
                             "Epoch": epoch,
                             "Step": i,
@@ -253,7 +253,7 @@ class Trainer:
             # Checkpointing
             self._save_model(epoch)
 
-        if self.use_wandb:
+        if self.use_wandb and (self.gpu_id==0 or not self.dist):
             wandb.finish()
 # ------------------------------------
 # Define Collate Function
@@ -477,7 +477,7 @@ def build_model(model_name):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(
         model_name, 
-        torch_dtype=torch.float32  # Ensure model uses float32
+        torch_dtype=torch.bfloat16  # Ensure model uses float32
     )
 
     # Add the special tokens to the tokenizer
