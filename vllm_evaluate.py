@@ -10,7 +10,7 @@ llm = LLM(model="meta-llama/Llama-3.2-1B-Instruct", dtype="float32")
 STOP_SEQUENCES = ["<|eot_id|>"]
 sampling_params = SamplingParams(temperature=1.0, top_p=0.95, max_tokens=4000)
 
-def generate_replies(problems, custom_prompt=None, stop_sequences=None): 
+def generate_replies(problems, stop_sequences=None): 
     prompts = [math_prompts.PROMPT.replace(r"{problem}",problem) for problem in problems]
     outputs = llm.generate(prompts, sampling_params)
 
@@ -36,14 +36,13 @@ def generate_replies(problems, custom_prompt=None, stop_sequences=None):
         solutions.append(solution)
     return solutions
 
-def main(num_samples=None, seed=None, custom_prompt=None):
+def main(num_samples=None, seed=None):
     """
     Main evaluation loop.
 
     Args:
         num_samples (Optional[int]): Number of samples to evaluate. If None, evaluate all.
         seed (Optional[int]): Seed for reproducibility.
-        custom_prompt (str, optional): Custom prompt to use for generation.
     """
     def batch(ds, batch_size=BATCH_SIZE):
         batch = ([], [])
@@ -56,9 +55,9 @@ def main(num_samples=None, seed=None, custom_prompt=None):
 
 
     total, correct = 0, 0
-    for i, (problems, solutions) in tqdm.tqdm(enumerate(batch(load_math(num_samples=num_samples, seed=seed)))):
+    for i, (problems, solutions) in enumerate(batch(tqdm.tqdm(load_math(num_samples=num_samples, seed=seed)))):
         # Get model answer
-        model_answer = generate_replies(problems, custom_prompt=custom_prompt,stop_sequences=STOP_SEQUENCES)
+        model_answer = generate_replies(problems,stop_sequences=STOP_SEQUENCES)
 
         # # Evaluate model answer
         # is_correct = compare_answers(y_true=solution, y_pred=model_answer)
@@ -83,14 +82,6 @@ if __name__ == "__main__":
 
     # create the prompt 
     train_iterator = load_math(split="train")
-    prompt = "Please solve the following math questions and make sure to wrap your answer into the $\boxed{answer}$"
     start = time.time()
-    for i, (question, answer) in enumerate(train_iterator):
-        prompt += f"Question: {question}\nSolution: {answer}\n"
-        if i >= 4:
-            break
 
-    main(num_samples=1000, seed=42, custom_prompt=prompt)
-    end=time.time()
-    print(f"{end-start=}")
-
+    main(num_samples=1000, seed=42)
