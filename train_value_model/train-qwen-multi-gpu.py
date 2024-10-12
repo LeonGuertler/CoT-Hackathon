@@ -107,7 +107,7 @@ class Trainer:
         self.use_wandb = use_wandb
         self.gpu_id = gpu_id
 
-
+        print(f"GPU_id: {self.gpu_id}")
         self.scaler = None
         self.ctx = self._setup_ctx()
 
