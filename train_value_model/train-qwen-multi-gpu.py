@@ -100,7 +100,7 @@ class Trainer:
         self.scheduler = scheduler
         self.criterion = criterion
         self.device = device
-        self.gradient_accumulation_steps = gradient_accumulation_steps
+        self.gradient_accumulation_steps = gradient_accumulation_steps // torch.cuda.device_count() if torch.cuda.is_available() else gradient_accumulation_steps
         self.max_grad_norm = max_grad_norm
         self.num_epochs = num_epochs
         self.checkpoint_dir = checkpoint_dir
@@ -238,7 +238,7 @@ class Trainer:
                         wandb.log({
                             "Epoch": epoch,
                             "Step": i,
-                            "Loss": running_loss * self.gradient_accumulation_steps,
+                            "Loss": running_loss * self.gradient_accumulation_steps* (torch.cuda.device_count() if torch.cuda.is_available() else 1),
                             "Learning Rate": current_lr,
                         })
                     running_loss = 0.0
@@ -281,7 +281,7 @@ def main():
     # ------------------------------------
     # Hyperparameters
     # ------------------------------------
-    batch_size = 2  # Adjust as per your GPU memory
+    batch_size = 12  # Adjust as per your GPU memory
     gradient_accumulation_steps = 32
     start_lr = 1e-8
     top_lr = 1e-4
