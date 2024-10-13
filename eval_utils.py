@@ -241,14 +241,16 @@ def strip_string(string):
 
 
 def extract_answer(text: str) -> str:
-    if "\\boxed" in text:
-        return remove_boxed(last_boxed_only_string(text))
-    elif "Answer:" in text:
-        return text.split("Answer:")[-1]
-    elif "###" in text:
-        return text.split("###")[-1]
+    last_boxed = last_boxed_only_string(text)
+    if last_boxed is None:
+        if "Answer:" in text:
+            return text.split("Answer:")[-1]
+        elif "###" in text:
+            return text.split("###")[-1]
+        else:
+            return text
     else:
-        return text
+        return remove_boxed(last_boxed)
 
 def compare_answers(y_true, y_pred):
     # preprocess both answers
