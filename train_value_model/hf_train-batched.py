@@ -32,7 +32,7 @@ special_tokens_dict = {
     ]
 }
 # add pad token
-model.pad_token_id = model.eos_token_id
+tokenizer.pad_token_id = tokenizer.eos_token_id
 num_added_tokens = tokenizer.add_special_tokens(special_tokens_dict)
 model.resize_token_embeddings(len(tokenizer))
 
