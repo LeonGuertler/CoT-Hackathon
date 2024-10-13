@@ -23,7 +23,7 @@ freeze_weights = False
 # Determine device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model_name = "Qwen/Qwen2.5-0.5B"
+model_name = "meta-llama/Llama-3.2-1B"
 # Load model and tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16) #attn_implementation = "flash_attention_2", dtype=torch.bfloat16)
@@ -72,43 +72,86 @@ class RMSNorm(torch.nn.Module):
         return output * self.weight
 
 # replace the model
+# class CustomLMHead(torch.nn.Module):
+#     def __init__(self):
+#         super().__init__()
+#         self.l = torch.nn.Linear(
+#           in_features=896,
+#           out_features=896,
+#           bias=True
+#         )
+#         self.linear = torch.nn.Linear(
+#             in_features=896,
+#             out_features=1,
+#             bias=True
+#         )
+
+#         self.reg = RMSNorm(dim=896)
+
+#         self.activation = torch.nn.Tanh()
+
+
+#     def forward(self, x):
+#         # input(x)
+#         x = self.l(x)
+#         x = self.reg(x)
+#         x = self.linear(x)
+#         return self.activation(x)
+
 class CustomLMHead(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, hidden_size, num_classes=3):
         super().__init__()
-        self.l = torch.nn.Linear(
-          in_features=896,
-          out_features=896,
-          bias=True
-        )
-        self.linear = torch.nn.Linear(
-            in_features=896,
-            out_features=1,
-            bias=True
-        )
-
-        self.reg = RMSNorm(dim=896)
-
-        self.activation = torch.nn.Tanh()
-
+        self.l = torch.nn.Linear(hidden_size, hidden_size)
+        self.l2 = torch.nn.Linear(hidden_size, hidden_size)
+        self.relu = torch.nn.ReLU()
+        self.l3 = torch.nn.Linear(hidden_size, hidden_size)
+        self.reg = RMSNorm(dim=hidden_size)
+        self.linear = torch.nn.Linear(hidden_size, num_classes)  # Adjust num_classes as needed
 
     def forward(self, x):
-        # input(x)
-        x = self.l(x)
+        # x = self.l(x)
+        # x = self.relu(x)
+        # x = self.l2(x)
+        # x = self.relu(x)
+        x = self.l3(x)
         x = self.reg(x)
+
         x = self.linear(x)
-        return self.activation(x)
+        return x
 
 # Replace the model's lm_head with CustomLMHead
-model.lm_head = CustomLMHead()
+hidden_size = model.config.hidden_size
+model.lm_head = CustomLMHead(hidden_size)
 
-if freeze_weights:
-    # Freeze all model parameters
-    for param in model.parameters():
-        param.requires_grad = False
+# Prepare LoRA configuration
+    lora_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        inference_mode=False,
+        r=16,  # Rank of the LoRA matrices
+        lora_alpha=16,
+        lora_dropout=0.1,
+        target_modules=["q_proj", "v_proj"]  # Adjust based on model architecture
+    )
 
-    # Unfreeze only the parameters of the new lm_head
-    for param in model.lm_head.parameters():
-        param.requires_grad = True
+    # Apply LoRA to the model
+    model = get_peft_model(model, lora_config)
+
+    # Optionally freeze model weights except for the LoRA layers and custom head
+    if freeze_weights:
+        for name, param in model.named_parameters():
+            if 'lora' not in name and not name.startswith('lm_head'):
+                param.requires_grad = False
+
+    return model, tokenizer
+
+# if freeze_weights:
+#     # Freeze all model parameters
+#     for param in model.parameters():
+#         param.requires_grad = False
+
+#     # Unfreeze only the parameters of the new lm_head
+#     for param in model.lm_head.parameters():
+#         param.requires_grad = True
 
 
 """
