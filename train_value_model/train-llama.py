@@ -142,7 +142,6 @@ if freeze_weights:
         if 'lora' not in name and not name.startswith('lm_head'):
             param.requires_grad = False
 
-return model, tokenizer
 
 # if freeze_weights:
 #     # Freeze all model parameters
