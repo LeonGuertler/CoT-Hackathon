@@ -244,7 +244,7 @@ val_loader = torch.utils.data.DataLoader(
 
 # Set up optimizer and loss function
 optimizer = AdamW(model.parameters(), lr=learning_rate)
-criterion = torch.nn.MSELoss()
+criterion = torch.nn.CrossEntropyLoss()
 
 # Training loop
 for epoch in range(num_epochs):
