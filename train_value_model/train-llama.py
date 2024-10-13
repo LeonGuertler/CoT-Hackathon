@@ -276,7 +276,7 @@ for epoch in range(num_epochs):
         last_logits = logits[torch.arange(logits.size(0)), lengths, :]  # Shape: (batch_size, num_classes)
 
         # Compute loss
-        loss = criterion(last_logits, y)
+        loss = criterion(last_logits, y.long())
 
         # Normalize loss for gradient accumulation
         loss = loss / gradient_accumulation_steps
