@@ -42,6 +42,9 @@ model.resize_token_embeddings(len(tokenizer))
 
 # Set pad token ID in model config
 model.config.pad_token_id = tokenizer.pad_token_id
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+model.train()
 
 # Define the dataset and tokenization function
 dataset = load_dataset("LeonGuertler/PRM800K_train2_base_sft")
@@ -119,23 +122,23 @@ trainer = Trainer(
 # This step is for debugging purposes and is not required for training.
 # If you choose to keep it, ensure tensors are on the correct device.
 
-batch = tokenized_datasets["train"][:2]
-batch = data_collator(batch)
-print("Input IDs:", batch["input_ids"])
-print("Attention Mask:", batch["attention_mask"])
-print("Labels:", batch["labels"])
+# batch = tokenized_datasets["train"][:2]
+# batch = data_collator(batch)
+# print("Input IDs:", batch["input_ids"])
+# print("Attention Mask:", batch["attention_mask"])
+# print("Labels:", batch["labels"])
 
-# **Move tensors to the same device as the model**
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
+# # **Move tensors to the same device as the model**
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# model.to(device)
 
-# Instead of using torch.tensor (which can cause issues), directly move existing tensors
-inputs = {k: v.to(device) for k, v in batch.items()}
+# # Instead of using torch.tensor (which can cause issues), directly move existing tensors
+# inputs = {k: v.to(device) for k, v in batch.items()}
 
-# Forward pass
-with torch.no_grad():  # Disable gradient calculation for inspection
-    outputs = model(**inputs)
-print("Model outputs:", outputs)
+# # Forward pass
+# with torch.no_grad():  # Disable gradient calculation for inspection
+#     outputs = model(**inputs)
+# print("Model outputs:", outputs)
 
 # Fine-tune the model
 trainer.train()
