@@ -288,7 +288,7 @@ for epoch in range(num_epochs):
         if (i + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
             optimizer.zero_grad()
-            print(f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}], Loss: {running_loss:.4f}, y_pred: {logits[:, -1].view(-1).tolist()}, y_true: {y.tolist()}")
+            print(f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}], Loss: {running_loss:.4f}, y_pred: {logits[:, -1].reshape(-1).tolist()}, y_true: {y.tolist()}")
             wandb.log(
               {
                 "epoch": epoch,
