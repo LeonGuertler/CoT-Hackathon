@@ -83,12 +83,15 @@ training_args = TrainingArguments(
     logging_steps=1,
     run_name="llama-3.2-1B-mixed-precision-classifier",
     fp16=True,  # Enable mixed precision with fp16
+    # For bfloat16, use the following instead:
+    # bf16=True,
+    # Note: Only set bf16=True if your hardware supports it.
     save_total_limit=2,  # Limit the number of saved checkpoints
     load_best_model_at_end=True,  # Load the best model when finished training
     metric_for_best_model="accuracy",  # Define your metric
 
     # **Specify Learning Rate and Warmup**
-    learning_rate=1e-6,    # Set your desired learning rate here
+    learning_rate=1e-5,    # Set your desired learning rate here
     warmup_steps=500,      # Number of warmup steps
 
     # Optionally specify scheduler type
@@ -105,16 +108,25 @@ trainer = Trainer(
     compute_metrics=compute_metrics,  # Ensure this is defined
 )
 
-# Optionally, inspect a batch to verify masking
+# **Optionally, inspect a batch to verify masking**
+# This step is for debugging purposes and is not required for training.
+# If you choose to keep it, ensure tensors are on the correct device.
+
 batch = tokenized_datasets["train"][:2]
 batch = data_collator(batch)
 print("Input IDs:", batch["input_ids"])
 print("Attention Mask:", batch["attention_mask"])
 print("Labels:", batch["labels"])
 
-# Convert to torch tensors for model compatibility (if necessary)
-inputs = {k: torch.tensor(v) for k, v in batch.items()}
-outputs = model(**inputs)
+# **Move tensors to the same device as the model**
+device = model.device  # Get the device of the model (e.g., 'cuda:0' or 'cpu')
+
+# Instead of using torch.tensor (which can cause issues), directly move existing tensors
+inputs = {k: v.to(device) for k, v in batch.items()}
+
+# Forward pass
+with torch.no_grad():  # Disable gradient calculation for inspection
+    outputs = model(**inputs)
 print("Model outputs:", outputs)
 
 # Fine-tune the model
