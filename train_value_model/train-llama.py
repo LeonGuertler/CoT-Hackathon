@@ -9,7 +9,7 @@ import numpy as np
 import wandb
 from torch.cuda.amp import autocast
 
-
+from peft import get_peft_model, LoraConfig, TaskType
 
 
 # Hyperparameters
