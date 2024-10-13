@@ -1,4 +1,4 @@
-from utils import Dataset, BaseSFTDataset
+from utils import Dataset, Dataset2, BaseSFTDataset
 from datasets import Dataset as HFDataset
 from huggingface_hub import HfApi
 
@@ -31,23 +31,34 @@ def push_to_hub(hf_dataset, repo_name, repo_description=""):
     print(f"Dataset pushed to https://huggingface.co/datasets/{repo_name}")
 
 
-custom_dataset = Dataset()
+# custom_dataset = Dataset()
+# hf_dataset = custom_dataset.to_hf_dataset()
+# print(hf_dataset)
+
+# push_to_hub(
+#         hf_dataset, 
+#         repo_name="PRM800K_train2",  # Replace 'username' with your Hugging Face username
+#         repo_description="Phase 2 training dataset with questions and ratings."
+#     )
+
+
+# custom_dataset = BaseSFTDataset()
+# hf_dataset = custom_dataset.to_hf_dataset()
+# print(hf_dataset)
+
+# push_to_hub(
+#         hf_dataset, 
+#         repo_name="PRM800K_train2_base_sft",  # Replace 'username' with your Hugging Face username
+#         repo_description="Phase 2 training dataset with questions and ratings."
+#     )
+
+
+custom_dataset = Dataset2()
 hf_dataset = custom_dataset.to_hf_dataset()
 print(hf_dataset)
 
 push_to_hub(
         hf_dataset, 
-        repo_name="PRM800K_train2",  # Replace 'username' with your Hugging Face username
-        repo_description="Phase 2 training dataset with questions and ratings."
-    )
-
-
-custom_dataset = BaseSFTDataset()
-hf_dataset = custom_dataset.to_hf_dataset()
-print(hf_dataset)
-
-push_to_hub(
-        hf_dataset, 
-        repo_name="PRM800K_train2_base_sft",  # Replace 'username' with your Hugging Face username
+        repo_name="PRM800K_train2_updated",  # Replace 'username' with your Hugging Face username
         repo_description="Phase 2 training dataset with questions and ratings."
     )
