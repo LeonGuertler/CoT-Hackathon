@@ -16,6 +16,11 @@ wandb.init(
 model_name = "meta-llama/Llama-3.2-1B-Instruct"  # Ensure this is the correct model name
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
+
+
+# Initialize the model for sequence classification
+model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
+
 # Add the special tokens to the tokenizer
 special_tokens_dict = {
     'additional_special_tokens': [
@@ -28,9 +33,6 @@ special_tokens_dict = {
 }
 num_added_tokens = tokenizer.add_special_tokens(special_tokens_dict)
 model.resize_token_embeddings(len(tokenizer))
-
-# Initialize the model for sequence classification
-model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
 
 # If a new pad token was added, resize the model's token embeddings
 if tokenizer.pad_token is not None and model.config.pad_token_id != tokenizer.pad_token_id:
