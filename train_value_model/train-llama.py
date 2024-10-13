@@ -124,25 +124,25 @@ hidden_size = model.config.hidden_size
 model.lm_head = CustomLMHead(hidden_size)
 
 # Prepare LoRA configuration
-    lora_config = LoraConfig(
-        task_type=TaskType.CAUSAL_LM,
-        inference_mode=False,
-        r=16,  # Rank of the LoRA matrices
-        lora_alpha=16,
-        lora_dropout=0.1,
-        target_modules=["q_proj", "v_proj"]  # Adjust based on model architecture
-    )
+lora_config = LoraConfig(
+    task_type=TaskType.CAUSAL_LM,
+    inference_mode=False,
+    r=16,  # Rank of the LoRA matrices
+    lora_alpha=16,
+    lora_dropout=0.1,
+    target_modules=["q_proj", "v_proj"]  # Adjust based on model architecture
+)
 
-    # Apply LoRA to the model
-    model = get_peft_model(model, lora_config)
+# Apply LoRA to the model
+model = get_peft_model(model, lora_config)
 
-    # Optionally freeze model weights except for the LoRA layers and custom head
-    if freeze_weights:
-        for name, param in model.named_parameters():
-            if 'lora' not in name and not name.startswith('lm_head'):
-                param.requires_grad = False
+# Optionally freeze model weights except for the LoRA layers and custom head
+if freeze_weights:
+    for name, param in model.named_parameters():
+        if 'lora' not in name and not name.startswith('lm_head'):
+            param.requires_grad = False
 
-    return model, tokenizer
+return model, tokenizer
 
 # if freeze_weights:
 #     # Freeze all model parameters
@@ -266,27 +266,26 @@ for epoch in range(num_epochs):
         mask = mask.to(device)
         y = y.to(device)
         with autocast(dtype=torch.bfloat16):
-          outputs = model(X, attention_mask=mask)
-        logits = outputs.logits
-        
+            # Forward pass
+            outputs = model(X, attention_mask=mask)
+        logits = outputs.logits  # Shape: (batch_size, seq_length, num_classes)
+
+        # Get indices of the last non-padded token for each sequence
+        lengths = mask.sum(dim=1) - 1  # Shape: (batch_size,)
+
+        # Gather the logits at the last token positions
+        last_logits = logits[torch.arange(logits.size(0)), lengths, :]  # Shape: (batch_size, num_classes)
+
         # Compute loss
-        loss = criterion(
-            logits[:, -1].view(-1).float(),  # only use last token for value prediction
-            y
-        )
-        mae_tracker.append(
-          torch.mean(
-            torch.abs(logits[:, -1].view(-1)-y)
-          ).item()
-        )
+        loss = criterion(last_logits, y)
 
-        # print(logits[:, -1].view(-1), y, loss)
-
-
-        loss = loss / gradient_accumulation_steps  # Normalize loss for gradient accumulation
+        # Normalize loss for gradient accumulation
+        loss = loss / gradient_accumulation_steps
         running_loss += loss.item()
+
+        # Backward pass
         loss.backward()
-        
+
         if (i + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
             optimizer.zero_grad()
@@ -305,19 +304,19 @@ for epoch in range(num_epochs):
         
         
     
-    # Validation loop
-    model.eval()
-    val_loss = 0.0
-    with torch.no_grad():
-        for X_val, mask_val, y_val in val_loader:
-            X_val = X_val.to(device)
-            mask_val = mask_val.to(device)
-            y_val = y_val.to(device)
+    # # Validation loop
+    # model.eval()
+    # val_loss = 0.0
+    # with torch.no_grad():
+    #     for X_val, mask_val, y_val in val_loader:
+    #         X_val = X_val.to(device)
+    #         mask_val = mask_val.to(device)
+    #         y_val = y_val.to(device)
             
-            outputs_val = model(X_val, attention_mask=mask_val)
-            logits_val = outputs_val.logits
-            loss_val = criterion(logits_val.squeeze(-1), y_val)
-            val_loss += loss_val.item()
+    #         outputs_val = model(X_val, attention_mask=mask_val)
+    #         logits_val = outputs_val.logits
+    #         loss_val = criterion(logits_val.squeeze(-1), y_val)
+    #         val_loss += loss_val.item()
     
-    avg_val_loss = val_loss / len(val_loader)
-    print(f"Epoch [{epoch+1}/{num_epochs}], Validation Loss: {avg_val_loss:.4f}")
+    # avg_val_loss = val_loss / len(val_loader)
+    # print(f"Epoch [{epoch+1}/{num_epochs}], Validation Loss: {avg_val_loss:.4f}")
