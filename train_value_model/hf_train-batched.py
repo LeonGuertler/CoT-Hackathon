@@ -31,6 +31,8 @@ special_tokens_dict = {
         '[PAD]'
     ]
 }
+# add pad token
+model.pad_token_id = model.eos_token_id
 num_added_tokens = tokenizer.add_special_tokens(special_tokens_dict)
 model.resize_token_embeddings(len(tokenizer))
 
@@ -74,8 +76,8 @@ training_args = TrainingArguments(
     output_dir="./results",
     eval_strategy="epoch",
     save_strategy="epoch",  # Align save strategy with eval strategy
-    per_device_train_batch_size=1,
-    per_device_eval_batch_size=1,
+    per_device_train_batch_size=2,
+    per_device_eval_batch_size=2,
     gradient_accumulation_steps=64,  # Simulate batch size of 64
     num_train_epochs=3,
     weight_decay=0.01,
