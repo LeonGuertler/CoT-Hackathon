@@ -16,6 +16,8 @@ wandb.init(
 model_name = "meta-llama/Llama-3.2-1B-Instruct"  # Ensure this is the correct model name
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
+
+
 # Initialize the model for sequence classification
 model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
 
@@ -29,12 +31,14 @@ special_tokens_dict = {
         '[PAD]'
     ]
 }
-# Add pad token
+# add pad token
 tokenizer.pad_token_id = tokenizer.eos_token_id
 num_added_tokens = tokenizer.add_special_tokens(special_tokens_dict)
 model.resize_token_embeddings(len(tokenizer))
 
-# Set pad token ID in model config
+# If a new pad token was added, resize the model's token embeddings
+# if tokenizer.pad_token is not None and model.config.pad_token_id != tokenizer.pad_token_id:
+# model.resize_token_embedding?(len(tokenizer))
 model.config.pad_token_id = tokenizer.pad_token_id
 
 # Define the dataset and tokenization function
@@ -51,12 +55,7 @@ def tokenize_function(examples):
     tokenized_inputs["labels"] = examples["value_label"]  # Assign labels correctly
     return tokenized_inputs
 
-# Apply tokenization and remove unnecessary columns
-tokenized_datasets = dataset.map(
-    tokenize_function, 
-    batched=True, 
-    remove_columns=["text", "value_label"]  # Remove 'text' and original 'value_label' columns
-)
+tokenized_datasets = dataset.map(tokenize_function, batched=True)
 
 # Initialize DataCollatorWithPadding for dynamic padding
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
@@ -66,6 +65,10 @@ def compute_metrics(eval_pred):
     logits, labels = eval_pred
     predictions = logits.argmax(axis=-1)
     metrics = {"accuracy": accuracy_score(labels, predictions)}
+    
+    # Optionally log sequence lengths
+    # Note: Accessing input_ids directly from eval_pred may not be straightforward
+    # Instead, you can compute it separately if needed
     return metrics
 
 # Define training arguments with mixed precision and warmup
@@ -83,13 +86,18 @@ training_args = TrainingArguments(
     logging_steps=1,
     run_name="llama-3.2-1B-mixed-precision-classifier",
     fp16=True,  # Enable mixed precision with fp16
+    # For bfloat16, use the following instead:
+    # bf16=True,
+    # Note: Only set bf16=True if your hardware supports it.
     save_total_limit=2,  # Limit the number of saved checkpoints
     load_best_model_at_end=True,  # Load the best model when finished training
     metric_for_best_model="accuracy",  # Define your metric
 
     # **Specify Learning Rate and Warmup**
-    learning_rate=1e-6,    # Set your desired learning rate here
+    learning_rate=1e-5,    # Set your desired learning rate here
     warmup_steps=500,      # Number of warmup steps
+    # Alternatively, use warmup_ratio to specify warmup as a fraction of total steps
+    # warmup_ratio=0.1,     # 10% of total steps
 
     # Optionally specify scheduler type
     lr_scheduler_type='linear',  # Default is 'linear'
