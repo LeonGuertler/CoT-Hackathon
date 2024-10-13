@@ -4,7 +4,7 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from transformers import Trainer, TrainingArguments, DataCollatorWithPadding
 from peft import get_peft_model, LoraConfig, TaskType
 from sklearn.metrics import accuracy_score
-import torch
+import torch, os
 
 # Initialize WandB
 # wandb.init(
