@@ -5,10 +5,12 @@ from transformers import Trainer, TrainingArguments, DefaultDataCollator
 from peft import get_peft_model, LoraConfig, TaskType
 
 # Initialize WandB
-wandb.init(project="your_project_name")
+wandb.init(
+    project="COT",
+    run_name="Value Model: Llama-3.2-1B-Instruct")
 
 # Load tokenizer and model
-model_name = "meta-llama/Llama-3.2-1B"  # Ensure this is the correct model name
+model_name = "meta-llama/Llama-3.2-1B-Instruct"  # Ensure this is the correct model name
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 # Remove padding token logic since we're using batch size 1
