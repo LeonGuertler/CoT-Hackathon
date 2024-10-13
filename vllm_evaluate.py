@@ -4,9 +4,9 @@ import tqdm
 import time
 import prompts as math_prompts
 
-BATCH_SIZE = 56
+BATCH_SIZE = 4
 DEBUG = False
-llm = LLM(model="meta-llama/Llama-3.2-1B-Instruct", dtype="float32")
+llm = LLM(model="sft_llama3.1-1b-instructoriginal", dtype="bfloat16")
 STOP_SEQUENCES = ["<|eot_id|>"]
 sampling_params = SamplingParams(temperature=1.0, top_p=0.95, max_tokens=4000)
 
@@ -17,8 +17,9 @@ def generate_replies(problems, stop_sequences=None):
     generated_texts = [output.outputs[0].text for output in outputs]
     for output, generated_text in zip(outputs, generated_texts):
         if generated_text == None:
-            print(f"{output.outputs[0]=}")
-            print(f"{generated_text=}")
+            print(f"UH OH{output.outputs[0]=}")
+            print(f"UH OH{generated_text=}")
+            generated_text = ""
     print(f"{outputs[0].outputs[0]=}")
     print(f"{generated_texts[0]=}")
     solutions=[]
