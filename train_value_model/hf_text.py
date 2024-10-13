@@ -118,8 +118,8 @@ trainer = Trainer(
 # **Optionally, inspect a batch to verify masking**
 # This step is for debugging purposes and is not required for training.
 # If you choose to keep it, ensure tensors are on the correct device.
-
-batch = tokenized_datasets["train"][:2]
+print(tokenized_datasets["train"])
+print(tokenized_datasets["train"][:2])
 batch = data_collator(batch)
 print("Input IDs:", batch["input_ids"])
 print("Attention Mask:", batch["attention_mask"])
