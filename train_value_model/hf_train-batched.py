@@ -37,9 +37,9 @@ num_added_tokens = tokenizer.add_special_tokens(special_tokens_dict)
 model.resize_token_embeddings(len(tokenizer))
 
 # If a new pad token was added, resize the model's token embeddings
-if tokenizer.pad_token is not None and model.config.pad_token_id != tokenizer.pad_token_id:
-    model.resize_token_embeddings(len(tokenizer))
-    model.config.pad_token_id = tokenizer.pad_token_id
+# if tokenizer.pad_token is not None and model.config.pad_token_id != tokenizer.pad_token_id:
+# model.resize_token_embedding?(len(tokenizer))
+model.config.pad_token_id = tokenizer.pad_token_id
 
 # Define the dataset and tokenization function
 dataset = load_dataset("LeonGuertler/PRM800K_train2_updated")
