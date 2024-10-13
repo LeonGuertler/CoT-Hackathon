@@ -21,7 +21,12 @@ CONFIG = {
     "lr": 5e-6,
     "num_train_epochs": 1,
     "run_name": "sft_llama3.1-1b-instruct",
+    "ds_name": "original",
+    "num_epochs": 5
 }
+CKPT_PATH = f"{CONFIG['run_name']}{CONFIG['ds_name']}"
+
+DS_NAMES = ["original", "modified"]
 
 wandb.init(
     # set the wandb project where this run will be logged
@@ -46,10 +51,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Move model to device and enable FP16 precision if CUDA is available
 model.to(device)
 
-ds = load_dataset("lighteval/MATH", "all", split="train", trust_remote_code=True)
-# map problem, solution to text
-ds = ds.map(lambda x: {"text": f"{x['problem']}{x['solution']}"})
-# ds = load_dataset("LeonGuertler/PRM800K_train2_base_sft", split="train")
+
+if CONFIG["ds_name"] == "original":
+    ds = load_dataset("lighteval/MATH", "all", split="train", trust_remote_code=True)
+    # map problem, solution to text
+    ds = ds.map(lambda x: {"text": f"{x['problem']}{x['solution']}"})
+else:
+    ds = load_dataset("LeonGuertler/PRM800K_train2_base_sft", split="train")
 
 
 # class LoRALinear(nn.Module):
@@ -100,19 +108,20 @@ ds = ds.map(lambda x: {"text": f"{x['problem']}{x['solution']}"})
 
 
 ## TRAIN MODEL
+num_epochs = CONFIG["num_train_epochs"]
 model.train()
 optimizer = torch.optim.AdamW(model.parameters(), lr=CONFIG["lr"])
 
 ## LR Scheduler
 # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
-cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, eta_min=2e-6, T_max=25000)
+cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, eta_min=2e-6, T_max=num_epochs * len(ds) // CONFIG["micro_batch_size"])
 warmup_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: min((epoch + 1) / 1000, 1.0))
 scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, [
     warmup_scheduler,
     cosine_scheduler
 ], milestones=[1000])
 
-for epoch in range(1):
+for epoch in range(num_epochs):
     model.train()
     for i, batch in enumerate(tqdm.tqdm(torch.utils.data.DataLoader(ds, batch_size=CONFIG["micro_batch_size"], shuffle=True))):
         inputs = tokenizer(batch["text"], return_tensors="pt", padding=True, truncation=True, max_length=2048).to(device)
@@ -127,15 +136,15 @@ for epoch in range(1):
             wandb.log({"loss": loss.item()})
 
 
-model.save_pretrained("sft_llama3.1-1b-instruct")
+model.save_pretrained(CKPT_PATH)
 del model
 del optimizer
 torch.cuda.empty_cache()
 # need to add tokenizer
-tokenizer.save_pretrained("sft_llama3.1-1b-instruct")
-BATCH_SIZE = 56
+tokenizer.save_pretrained(CKPT_PATH)
+BATCH_SIZE = 4
 DEBUG = False
-llm = LLM(model="sft_llama3.1-1b-instruct", dtype="bfloat16")
+llm = LLM(model="sft_llama3.1-1b-instructoriginal", dtype="bfloat16")
 STOP_SEQUENCES = ["<|eot_id|>"]
 sampling_params = SamplingParams(temperature=1.0, top_p=0.95, max_tokens=4000)
 
