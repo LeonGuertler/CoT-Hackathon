@@ -9,7 +9,7 @@ import torch
 # Initialize WandB
 wandb.init(
     project="COT",
-    run_name="Value Model: Llama-3.2-1B-Instruct"
+    name="Value Model: Llama-3.2-1B-Instruct"
 )
 
 # Load tokenizer and model
