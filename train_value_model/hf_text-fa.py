@@ -12,6 +12,11 @@ import math
 import torch
 from sklearn.metrics import accuracy_score  # This will no longer be used but kept for reference
 import os
+from flash_attn.modules.mha import FlashSelfAttention
+
+# Example of replacing the default self-attention with Flash Attention:
+
+# Alternatively, modify the attention layers manually, depending on the model architecture.
 
 # # Trainer args
 # parser = HfArgumentParser(TrainingArguments)
@@ -44,6 +49,7 @@ model.resize_token_embeddings(len(tokenizer))
 
 # Set pad token ID in model config
 model.config.pad_token_id = tokenizer.pad_token_id
+model.config.use_flash_attention = True  # Assuming model supports this flag
 
 # Define the dataset and tokenization function
 dataset = load_dataset("LeonGuertler/PRM800K_train2_base_sft")
