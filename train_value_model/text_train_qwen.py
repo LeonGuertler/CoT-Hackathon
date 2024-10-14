@@ -8,11 +8,10 @@ load_in_4bit = True
 #     "unsloth/Qwen2.5-0.5B-bnb-4bit",
 # ]
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name = "unsloth/Llama-3.2-1B", #"unsloth/Qwen2.5-0.5B",
+    model_name = "unsloth/Qwen2.5-0.5B",
     max_seq_length = max_seq_length,
     dtype = dtype,
     load_in_4bit = load_in_4bit,
-    token="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"
 )
 
 
@@ -102,9 +101,24 @@ trainer = SFTTrainer(
 
 trainer_stats = trainer.train()
 
+# After training
+print("Merging LoRA adapters into the base model...")
+model = model.merge_and_unload()
 
-# 10. Save the updated tokenizer and model (including PEFT adapters)
-print("Saving the tokenizer and model...")
-tokenizer.save_pretrained("outputs/checkpoint-120")
-model.save_pretrained("outputs/checkpoint-120")
-print("Model and tokenizer saved successfully.")
+# Save the merged model
+model.save_pretrained("outputs/checkpoint-120/merged_model")
+tokenizer.save_pretrained("outputs/checkpoint-120/tokenizer")
+
+
+# print("Saving the tokenizer and model...")
+# tokenizer.save_pretrained("outputs/checkpoint-120")
+# model.save_pretrained("outputs/checkpoint-120")
+# print("Model and tokenizer saved successfully.")
+
+
+
+# # 10. Save the updated tokenizer and model (including PEFT adapters)
+# print("Saving the tokenizer and model...")
+# tokenizer.save_pretrained("outputs/checkpoint-120")
+# model.save_pretrained("outputs/checkpoint-120")
+# print("Model and tokenizer saved successfully.")

@@ -22,6 +22,12 @@ def load_model(model_dir, max_seq_length=4096, dtype=None, load_in_4bit=True):
         dtype=dtype,
         load_in_4bit=load_in_4bit,
     )
+    # # Load the tokenizer
+    # tokenizer = AutoTokenizer.from_pretrained(f"{model_dir}/tokenizer")
+
+    # # Apply the LoRA adapters
+    # model = PeftModel.from_pretrained(model, f"{model_dir}/adapter")
+
     # Prepare the model for inference
     model = FastLanguageModel.for_inference(model)
     return model, tokenizer
@@ -77,7 +83,7 @@ def verify_special_tokens(tokenizer, special_tokens):
 
 def main():
     # Path to the trained model directory
-    model_dir = "outputs/checkpoint-10"  # Ensure this path is correct
+    model_dir = "outputs/checkpoint-120/merged_model"  # Ensure this path is correct
     
     # Define the special tokens added during training
     special_tokens = [
