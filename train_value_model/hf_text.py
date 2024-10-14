@@ -20,7 +20,7 @@ import os
 os.environ["WANDB_PROJECT"] = "COT"
 
 # Load tokenizer and model
-model_name = "meta-llama/Llama-3.2-1B-Instruct"  # Ensure this is the correct model name
+model_name = "Qwen/Qwen2.5-0.5B" #"meta-llama/Llama-3.2-1B-Instruct"  # Ensure this is the correct model name
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 # Initialize the model for causal language modeling
@@ -53,7 +53,7 @@ def tokenize_function(examples):
     return tokenizer(
         examples["text"],
         truncation=True,
-        # max_length=512,          # Adjust as needed
+        max_length=2048,          # Adjust as needed
         padding=False            # Let the data collator handle padding
     )
 
@@ -84,25 +84,25 @@ torch.utils.checkpoint.use_reentrant = False  # Disable reentrant checkpointing
 
 # Define training arguments with mixed precision and warmup
 training_args = TrainingArguments(
-    output_dir="/data/shanghong/llama-3.2-1B",
+    output_dir="./Qwen-0.5B",
     
     eval_strategy="steps",
     eval_steps= 1,
     save_strategy="steps",
     save_steps= 10,
     
-    per_device_train_batch_size=6,
+    per_device_train_batch_size=1,
     per_device_eval_batch_size=1,
-    gradient_accumulation_steps=64,  # Simulate larger batch size
+    gradient_accumulation_steps=32,  # Simulate larger batch size
     num_train_epochs=3,
     weight_decay=0.01,
     report_to="wandb",
-    logging_dir="/data/shanghong/llama-3.2-1B",
+    logging_dir="./Qwen-0.5B",
     logging_steps=2,  # Adjust logging frequency as needed
-    run_name="llama-3.2-1B-mixed-precision-LM-sh",
-    fp16=True,  # Enable mixed precision with fp16
+    run_name="Qwen-0.5B-mixed-precision-LM-sh",
+    # fp16=True,  # Enable mixed precision with fp16
     # For bfloat16, use the following instead:
-    # bf16=True,
+    bf16=True,
     # Note: Only set bf16=True if your hardware supports it.
     save_total_limit=10,  # Limit the number of saved checkpoints
     load_best_model_at_end=True,  # Load the best model when finished training
