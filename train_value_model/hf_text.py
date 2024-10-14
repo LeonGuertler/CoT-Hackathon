@@ -77,10 +77,10 @@ def compute_metrics(eval_pred):
     return {"perplexity": perplexity}
 
 # Enable gradient checkpointing
-model.gradient_checkpointing_enable()
+# model.gradient_checkpointing_enable()
 
 # Access the internal checkpointing settings in PyTorch
-torch.utils.checkpoint.use_reentrant = False  # Disable reentrant checkpointing
+# torch.utils.checkpoint.use_reentrant = False  # Disable reentrant checkpointing
 
 # Define training arguments with mixed precision and warmup
 training_args = TrainingArguments(
