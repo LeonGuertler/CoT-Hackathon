@@ -12,23 +12,23 @@ model, tokenizer = FastLanguageModel.from_pretrained(
     max_seq_length = max_seq_length,
     dtype = dtype,
     load_in_4bit = load_in_4bit,
-    token="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"
 )
 
-
-# adjust tokenizer vocab
-special_tokens_dict = {
-    'additional_special_tokens': [
-      '<|reserved_special_token_10|>', 
-      '<|reserved_special_token_11|>', 
-      '<|reserved_special_token_12|>', 
-      '<|reserved_special_token_13|>'
-    ]
-}
-num_added_tokens = tokenizer.add_special_tokens(special_tokens_dict)
-
-# Resize model embeddings to match the new tokenizer size
-model.resize_token_embeddings(len(tokenizer))
+# print(len(tokenizer))
+# # adjust tokenizer vocab
+# special_tokens_dict = {
+#     'additional_special_tokens': [
+#       '<|reserved_special_token_10|>', 
+#       '<|reserved_special_token_11|>', 
+#       '<|reserved_special_token_12|>', 
+#       '<|reserved_special_token_13|>'
+#     ]
+# }
+# num_added_tokens = tokenizer.add_special_tokens(special_tokens_dict)
+# print(num_added_tokens, len(tokenizer))
+# input()
+# # Resize model embeddings to match the new tokenizer size
+# model.resize_token_embeddings(len(tokenizer))
 
 
 model = FastLanguageModel.get_peft_model(
@@ -83,11 +83,11 @@ trainer = SFTTrainer(
     max_seq_length = max_seq_length,
     dataset_num_proc = 2,
     args = TrainingArguments(
-        per_device_train_batch_size = 4, #8,
+        per_device_train_batch_size = 16, #8,
         gradient_accumulation_steps = 16,
         # Use num_train_epochs = 1, warmup_ratio for full training runs!
         warmup_steps = 200,
-        max_steps = 10,
+        max_steps = 2_500,
         learning_rate = 5e-5,
         fp16 = not is_bfloat16_supported(),
         bf16 = is_bfloat16_supported(),
