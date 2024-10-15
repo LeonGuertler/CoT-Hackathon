@@ -50,7 +50,7 @@ def tokenize_function(examples):
         max_length=512,          # Optional: Set max_length to control padding
         padding=False            # Let the data collator handle padding
     )
-    tokenized_inputs["labels"] = examples["value_label"]  # Assign labels correctly
+    tokenized_inputs["labels"] = examples["value_label"]  # Assign labels correctlyc1c1
     return tokenized_inputs
 
 # Apply tokenization and remove unnecessary columns
