@@ -1,5 +1,11 @@
-import wandb
+import datasets
+import torch
+import transformers
+import os
+import logging
+
 from datasets import load_dataset
+
 from transformers import (
     AutoTokenizer, 
     AutoModelForCausalLM, 
@@ -8,11 +14,6 @@ from transformers import (
     HfArgumentParser,
     DataCollatorForLanguageModeling
 )
-import math
-import torch
-from sklearn.metrics import accuracy_score  # This will no longer be used but kept for reference
-import os
-import logging
 from accelerate.state import PartialState
 
 if __name__ == "__main__":
@@ -22,12 +23,56 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
+    log_level = logging.INFO
+    datasets.utils.logging.set_verbosity(log_level)
+    transformers.utils.logging.set_verbosity(log_level)
+    transformers.utils.logging.enable_default_handler()
+    transformers.utils.logging.enable_explicit_format()
+
     os.environ["WANDB_PROJECT"] = "COT"
     
+    # Load args
+    # Define training arguments with mixed precision and warmup
+    training_args = TrainingArguments(
+        output_dir="/data/shanghong/llama-3.2-1B-sft",
+        eval_strategy="steps",
+        eval_steps=10,
+        save_strategy="steps",
+        save_steps=10,
+        per_device_train_batch_size=3,
+        per_device_eval_batch_size=4,
+        gradient_accumulation_steps=32,  # Simulate larger batch size
+        num_train_epochs=3,
+        weight_decay=0.01,
+        report_to="wandb",
+        logging_dir="/data/shanghong/llama-3.2-1B-sft",
+        logging_steps=2,  # Adjust logging frequency as needed
+        run_name="llama-3.2-1b-sft",
+        bf16=True,  
+        save_total_limit=2,  # Limit the number of saved checkpoints
+        load_best_model_at_end=True,  # Load the best model when finished training
+        metric_for_best_model="perplexity",  # Define your metric
+        greater_is_better=False,  # Lower perplexity is better
+        learning_rate=1e-6,    # Set your desired learning rate here
+        warmup_steps=500,      # Number of warmup steps
+        lr_scheduler_type='linear',  # Default is 'linear'
+        batch_eval_metrics=True,
+        gradient_checkpointing=True,
+        gradient_checkpointing_kwargs={"use_reentrant":False}
+    )
+    
+    model_kwargs = dict(
+        revision="main",
+        torch_dtype="bfloat16",
+        trust_remote_code=True,
+        attn_implementation="flash_attention_2",
+        use_cache=False if training_args.gradient_checkpointing else True,
+    )
+
     # Load tokenizer and model
     logger.info("*** Loading pretrained model and tokenizer ***")
     model_name = "meta-llama/Llama-3.2-1B-Instruct"
-    model = AutoModelForCausalLM.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     special_tokens_dict = {
@@ -81,8 +126,7 @@ if __name__ == "__main__":
     )
 
     entropy_list = []
-    def batch_compute_metrics(eval_pred):
-        input(eval_pred)
+    def batch_compute_metrics(eval_pred, compute_result):
         global entropy_list
         IGNORE_INDEX = -100
         shift_logits = eval_pred.predictions[..., :-1, :].contiguous()
@@ -97,41 +141,17 @@ if __name__ == "__main__":
         )
         # Append the flattened entropy for this batch
         entropy_list.append(entropy[torch.where(shift_labels.view(batch_size * seq_length) != IGNORE_INDEX)].cpu())
-        # Concatenate all entropy values and compute the mean
-        all_entropy = torch.cat(entropy_list, dim=0)
-        mean_entropy = torch.mean(all_entropy, dim=-1)
-        trainer.accelerator.print(mean_entropy)
-        perplexity = torch.exp(mean_entropy)
-        # empty cache
-        entropy_list = []
-        return {"perplexity": perplexity.item()}
-
-    # Define training arguments with mixed precision and warmup
-    training_args = TrainingArguments(
-        output_dir="/data/shanghong/llama-3.2-1B-sft",
-        eval_strategy="steps",
-        eval_steps=10,
-        save_strategy="steps",
-        save_steps=10,
-        per_device_train_batch_size=3,
-        per_device_eval_batch_size=2,
-        eval_accumulation_steps=1,
-        gradient_accumulation_steps=32,  # Simulate larger batch size
-        num_train_epochs=3,
-        weight_decay=0.01,
-        report_to="wandb",
-        logging_dir="/data/shanghong/llama-3.2-1B-sft",
-        logging_steps=2,  # Adjust logging frequency as needed
-        run_name="llama-3.2-1b-sft",
-        fp16=True,  # Enable mixed precision with fp16
-        save_total_limit=2,  # Limit the number of saved checkpoints
-        load_best_model_at_end=True,  # Load the best model when finished training
-        metric_for_best_model="perplexity",  # Define your metric
-        greater_is_better=False,  # Lower perplexity is better
-        learning_rate=1e-6,    # Set your desired learning rate here
-        warmup_steps=500,      # Number of warmup steps
-        lr_scheduler_type='linear',  # Default is 'linear'
-    )
+        if compute_result:
+             # Concatenate all entropy values and compute the mean
+            all_entropy = torch.cat(entropy_list, dim=0)
+            mean_entropy = torch.mean(all_entropy, dim=-1)
+            trainer.accelerator.print(mean_entropy)
+            perplexity = torch.exp(mean_entropy)
+            # empty cache
+            entropy_list = []
+            return {"perplexity": perplexity.item()}
+        else:
+            return {}
 
     # Initialize Trainer
     trainer = Trainer(
